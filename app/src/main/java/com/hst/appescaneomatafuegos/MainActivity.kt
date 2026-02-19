@@ -88,7 +88,7 @@ class MainActivity : AppCompatActivity() {
             val preview = Preview.Builder()
                 .build()
                 .also {
-                    it.surfaceProvider = binding.previewView.surfaceProvider
+                    it.setSurfaceProvider(binding.previewView.surfaceProvider)
                 }
 
             // Análisis de imagen con ML Kit
