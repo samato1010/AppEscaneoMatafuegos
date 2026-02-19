@@ -1,21 +1,22 @@
 package com.hst.appescaneomatafuegos
 
+import okhttp3.OkHttpClient
 import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
 import retrofit2.http.POST
+import java.util.concurrent.TimeUnit
 
 /**
  * Modelo de datos para enviar al backend.
- * Solo contiene la URL extraída del QR.
  */
 data class EscaneoRequest(
     val url: String
 )
 
 /**
- * Respuesta genérica del backend.
+ * Respuesta del backend PHP.
  */
 data class EscaneoResponse(
     val success: Boolean = false,
@@ -23,23 +24,29 @@ data class EscaneoResponse(
 )
 
 /**
- * Interface Retrofit para comunicación con el backend.
+ * Interface Retrofit para comunicación con el backend Hostinger.
  */
 interface ApiService {
 
-    @POST("api/escaneos")
+    @POST("recibir_escaneo.php")
     suspend fun enviarEscaneo(@Body request: EscaneoRequest): Response<EscaneoResponse>
 
     companion object {
-        // TODO: Cambiar por la URL real del backend
-        private const val BASE_URL = "https://tu-dominio.com/"
+        private const val BASE_URL = "https://hst.ar/belga/"
 
         /**
-         * Crea instancia singleton de ApiService.
+         * Crea instancia singleton de ApiService con timeouts configurados.
          */
         fun create(): ApiService {
+            val client = OkHttpClient.Builder()
+                .connectTimeout(15, TimeUnit.SECONDS)
+                .readTimeout(15, TimeUnit.SECONDS)
+                .writeTimeout(15, TimeUnit.SECONDS)
+                .build()
+
             return Retrofit.Builder()
                 .baseUrl(BASE_URL)
+                .client(client)
                 .addConverterFactory(GsonConverterFactory.create())
                 .build()
                 .create(ApiService::class.java)
