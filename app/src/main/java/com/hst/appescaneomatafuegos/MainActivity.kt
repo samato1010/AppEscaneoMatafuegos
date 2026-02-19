@@ -1,11 +1,20 @@
 package com.hst.appescaneomatafuegos
 
 import android.Manifest
+import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
+import android.provider.Settings
 import android.util.Log
-import android.widget.Toast
+import android.view.View
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
@@ -13,16 +22,27 @@ import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
+import androidx.work.Constraints
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import com.google.android.material.snackbar.Snackbar
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
+import com.hst.appescaneomatafuegos.data.AppDatabase
+import com.hst.appescaneomatafuegos.data.EscaneoRepository
 import com.hst.appescaneomatafuegos.databinding.ActivityMainBinding
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 /**
  * MainActivity — Pantalla principal con preview de cámara y escaneo QR en tiempo real.
@@ -31,20 +51,29 @@ import java.util.concurrent.Executors
  * 1. Solicita permiso de cámara
  * 2. Inicia CameraX con Preview + ImageAnalysis
  * 3. ML Kit escanea cada frame buscando QR
- * 4. Si el QR contiene URL válida de AGC matafuegos → muestra + envía POST al backend
+ * 4. Si el QR contiene URL válida de AGC matafuegos:
+ *    - Guarda en Room
+ *    - Intenta enviar al backend
+ *    - Feedback visual + vibración
+ * 5. Botón sync para enviar pendientes manualmente
+ * 6. WorkManager para sync automático cada 15 min
  */
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var cameraExecutor: ExecutorService
-    private val apiService: ApiService by lazy { ApiService.create() }
+    private lateinit var repository: EscaneoRepository
 
     // Prefijo válido de URLs de matafuegos AGC
     private val URL_PREFIX = "https://dghpsh.agcontrol.gob.ar/matafuegos/datosEstampilla.jsp"
 
-    // Evitar envíos duplicados de la misma URL
-    private var lastSentUrl: String = ""
+    // Evitar procesamiento duplicado en tiempo real
+    private var lastProcessedUrl: String = ""
     private var isProcessing: Boolean = false
+
+    // Job para hint de "no detecta QR"
+    private var hintJob: Job? = null
+    private var lastDetectionTime: Long = 0
 
     // Request de permiso de cámara
     private val cameraPermissionLauncher = registerForActivityResult(
@@ -53,8 +82,7 @@ class MainActivity : AppCompatActivity() {
         if (isGranted) {
             startCamera()
         } else {
-            Toast.makeText(this, "Se necesita permiso de cámara para escanear QR", Toast.LENGTH_LONG).show()
-            finish()
+            mostrarDialogoPermisosDenegados()
         }
     }
 
@@ -65,6 +93,14 @@ class MainActivity : AppCompatActivity() {
 
         cameraExecutor = Executors.newSingleThreadExecutor()
 
+        // Inicializar repository
+        val db = AppDatabase.getInstance(this)
+        val api = ApiService.create()
+        repository = EscaneoRepository(db.escaneoDao(), api, this)
+
+        // Configurar botón sync
+        binding.fabSync.setOnClickListener { sincronizarManual() }
+
         // Verificar permisos
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
             == PackageManager.PERMISSION_GRANTED
@@ -73,6 +109,15 @@ class MainActivity : AppCompatActivity() {
         } else {
             cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
         }
+
+        // Programar WorkManager para sync automático
+        programarSyncAutomatico()
+
+        // Actualizar badge de pendientes
+        actualizarBadgePendientes()
+
+        // Iniciar hint timer
+        iniciarHintTimer()
     }
 
     /**
@@ -115,7 +160,7 @@ class MainActivity : AppCompatActivity() {
                 Log.d(TAG, "Cámara iniciada correctamente")
             } catch (e: Exception) {
                 Log.e(TAG, "Error al iniciar cámara: ${e.message}", e)
-                Toast.makeText(this, "Error al iniciar cámara", Toast.LENGTH_SHORT).show()
+                showSnackbar("Error al iniciar cámara", error = true)
             }
         }, ContextCompat.getMainExecutor(this))
     }
@@ -137,6 +182,9 @@ class MainActivity : AppCompatActivity() {
         scanner.process(image)
             .addOnSuccessListener { barcodes ->
                 for (barcode in barcodes) {
+                    // Actualizar timestamp de detección para hint
+                    lastDetectionTime = System.currentTimeMillis()
+
                     if (barcode.valueType == Barcode.TYPE_URL || barcode.valueType == Barcode.TYPE_TEXT) {
                         val rawValue = barcode.rawValue ?: continue
                         handleDetectedQR(rawValue)
@@ -152,7 +200,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Maneja un QR detectado: valida la URL y la envía al backend.
+     * Maneja un QR detectado: valida la URL, guarda en Room, envía al backend.
      */
     private fun handleDetectedQR(rawValue: String) {
         // Verificar si es URL válida de matafuegos
@@ -167,61 +215,225 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        // Evitar duplicados
-        if (rawValue == lastSentUrl) return
+        // Evitar procesamiento duplicado en la misma sesión
+        if (rawValue == lastProcessedUrl) return
+        lastProcessedUrl = rawValue
 
-        lastSentUrl = rawValue
+        // Vibrar al detectar QR válido
+        vibrar()
 
+        // Mostrar loading
         runOnUiThread {
-            binding.textViewStatus.text = "✅ QR de matafuegos detectado"
+            binding.textViewStatus.text = "⏳ Procesando..."
             binding.textViewResult.text = rawValue
             binding.textViewResult.setTextColor(
-                ContextCompat.getColor(this, R.color.success)
+                ContextCompat.getColor(this, R.color.white)
             )
+            binding.progressBar.visibility = View.VISIBLE
         }
 
-        // Enviar al backend
-        uploadToWeb(rawValue)
+        // Procesar en coroutine
+        isProcessing = true
+        lifecycleScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                repository.procesarEscaneo(rawValue)
+            }
+
+            binding.progressBar.visibility = View.GONE
+            isProcessing = false
+
+            when (result) {
+                is EscaneoRepository.EnvioResult.Enviado -> {
+                    binding.textViewStatus.text = "✅ Enviado al servidor"
+                    binding.textViewResult.setTextColor(
+                        ContextCompat.getColor(this@MainActivity, R.color.success)
+                    )
+                    showSnackbar("Escaneo enviado ✓")
+                }
+                is EscaneoRepository.EnvioResult.GuardadoOffline -> {
+                    binding.textViewStatus.text = "📱 Guardado offline (sin conexión)"
+                    binding.textViewResult.setTextColor(
+                        ContextCompat.getColor(this@MainActivity, R.color.warning)
+                    )
+                    showSnackbar("Sin conexión — guardado para enviar después", warning = true)
+                }
+                is EscaneoRepository.EnvioResult.Duplicado -> {
+                    binding.textViewStatus.text = "ℹ️ Ya escaneado previamente"
+                    binding.textViewResult.setTextColor(
+                        ContextCompat.getColor(this@MainActivity, R.color.primary)
+                    )
+                    showSnackbar("Este QR ya fue enviado")
+                }
+                is EscaneoRepository.EnvioResult.Error -> {
+                    binding.textViewStatus.text = "⚠️ ${result.mensaje}"
+                    binding.textViewResult.setTextColor(
+                        ContextCompat.getColor(this@MainActivity, R.color.error)
+                    )
+                    showSnackbar(result.mensaje, error = true)
+                }
+            }
+
+            actualizarBadgePendientes()
+        }
     }
 
     /**
-     * Envía la URL detectada al backend via POST.
+     * Sincronización manual al presionar el FAB.
      */
-    private fun uploadToWeb(url: String) {
-        isProcessing = true
+    private fun sincronizarManual() {
+        if (!repository.hayConexion()) {
+            showSnackbar("Sin conexión a internet", error = true)
+            return
+        }
 
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                Log.d(TAG, "Enviando URL al backend: $url")
-                val response = apiService.enviarEscaneo(EscaneoRequest(url = url))
+        binding.fabSync.isEnabled = false
+        binding.progressBar.visibility = View.VISIBLE
 
-                withContext(Dispatchers.Main) {
-                    if (response.isSuccessful) {
-                        binding.textViewStatus.text = "✅ Enviado al servidor correctamente"
-                        Log.d(TAG, "URL enviada OK: ${response.code()}")
-                        Toast.makeText(
-                            this@MainActivity,
-                            "Escaneo enviado ✓",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    } else {
-                        binding.textViewStatus.text = "⚠️ Error del servidor: ${response.code()}"
-                        Log.w(TAG, "Error del servidor: ${response.code()} ${response.message()}")
-                    }
-                    isProcessing = false
+        lifecycleScope.launch {
+            val pendientes = withContext(Dispatchers.IO) { repository.contarPendientes() }
+
+            if (pendientes == 0) {
+                binding.progressBar.visibility = View.GONE
+                binding.fabSync.isEnabled = true
+                showSnackbar("No hay escaneos pendientes")
+                return@launch
+            }
+
+            showSnackbar("Sincronizando $pendientes escaneos...")
+
+            val (enviados, fallidos) = withContext(Dispatchers.IO) {
+                repository.sincronizarPendientes()
+            }
+
+            binding.progressBar.visibility = View.GONE
+            binding.fabSync.isEnabled = true
+
+            val msg = when {
+                fallidos == 0 -> "✅ $enviados escaneos sincronizados"
+                enviados == 0 -> "❌ No se pudo sincronizar ($fallidos fallidos)"
+                else -> "Sincronizados $enviados de ${enviados + fallidos}"
+            }
+            showSnackbar(msg, error = fallidos > 0 && enviados == 0)
+
+            actualizarBadgePendientes()
+        }
+    }
+
+    /**
+     * Actualiza el badge del FAB con la cantidad de pendientes.
+     */
+    private fun actualizarBadgePendientes() {
+        lifecycleScope.launch {
+            val pendientes = withContext(Dispatchers.IO) { repository.contarPendientes() }
+            binding.textPendientes.text = if (pendientes > 0) "$pendientes" else ""
+            binding.textPendientes.visibility = if (pendientes > 0) View.VISIBLE else View.GONE
+        }
+    }
+
+    /**
+     * Programa WorkManager para sync automático cada 15 min con conexión.
+     */
+    private fun programarSyncAutomatico() {
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+
+        val syncRequest = PeriodicWorkRequestBuilder<SyncWorker>(15, TimeUnit.MINUTES)
+            .setConstraints(constraints)
+            .build()
+
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            SyncWorker.WORK_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            syncRequest
+        )
+
+        Log.d(TAG, "WorkManager sync automático programado")
+    }
+
+    /**
+     * Vibración corta al detectar QR válido.
+     */
+    private fun vibrar() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val vibratorManager = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+                vibratorManager.defaultVibrator.vibrate(
+                    VibrationEffect.createOneShot(150, VibrationEffect.DEFAULT_AMPLITUDE)
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    vibrator.vibrate(
+                        VibrationEffect.createOneShot(150, VibrationEffect.DEFAULT_AMPLITUDE)
+                    )
+                } else {
+                    @Suppress("DEPRECATION")
+                    vibrator.vibrate(150)
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error de red: ${e.message}", e)
-                withContext(Dispatchers.Main) {
-                    binding.textViewStatus.text = "⚠️ Error de conexión (URL guardada localmente)"
-                    isProcessing = false
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "No se pudo vibrar: ${e.message}")
+        }
+    }
+
+    /**
+     * Inicia timer que muestra hint si no se detecta QR por 5 segundos.
+     */
+    private fun iniciarHintTimer() {
+        lastDetectionTime = System.currentTimeMillis()
+        hintJob = lifecycleScope.launch {
+            while (true) {
+                delay(5000)
+                val elapsed = System.currentTimeMillis() - lastDetectionTime
+                if (elapsed > 5000 && !isProcessing) {
+                    binding.textViewStatus.text = "💡 Apuntá al código QR de la tarjeta del matafuegos"
                 }
             }
         }
     }
 
+    /**
+     * Muestra Snackbar con mensaje.
+     */
+    private fun showSnackbar(message: String, error: Boolean = false, warning: Boolean = false) {
+        val snackbar = Snackbar.make(binding.root, message, Snackbar.LENGTH_SHORT)
+        when {
+            error -> snackbar.setBackgroundTint(ContextCompat.getColor(this, R.color.error))
+            warning -> snackbar.setBackgroundTint(ContextCompat.getColor(this, R.color.warning))
+        }
+        snackbar.show()
+    }
+
+    /**
+     * Diálogo cuando se deniegan permisos de cámara.
+     */
+    private fun mostrarDialogoPermisosDenegados() {
+        AlertDialog.Builder(this)
+            .setTitle("Permiso de cámara necesario")
+            .setMessage("Esta app necesita acceso a la cámara para escanear códigos QR de matafuegos. Por favor habilitá el permiso en Configuración.")
+            .setPositiveButton("Ir a Configuración") { _, _ ->
+                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = Uri.fromParts("package", packageName, null)
+                }
+                startActivity(intent)
+            }
+            .setNegativeButton("Cerrar") { _, _ -> finish() }
+            .setCancelable(false)
+            .show()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Permitir re-escanear el mismo QR si vuelve a la app
+        lastProcessedUrl = ""
+        actualizarBadgePendientes()
+    }
+
     override fun onDestroy() {
         super.onDestroy()
+        hintJob?.cancel()
         cameraExecutor.shutdown()
     }
 

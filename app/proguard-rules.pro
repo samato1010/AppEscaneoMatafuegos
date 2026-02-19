@@ -7,3 +7,6 @@
 -keepattributes Exceptions
 -keep class com.hst.appescaneomatafuegos.EscaneoRequest { *; }
 -keep class com.hst.appescaneomatafuegos.EscaneoResponse { *; }
+
+# Room
+-keep class com.hst.appescaneomatafuegos.data.** { *; }

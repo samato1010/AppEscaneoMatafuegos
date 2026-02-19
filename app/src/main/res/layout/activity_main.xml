@@ -29,6 +29,54 @@
         app:layout_constraintStart_toStartOf="@id/previewView"
         app:layout_constraintEnd_toEndOf="@id/previewView" />
 
+    <!-- ProgressBar de carga -->
+    <ProgressBar
+        android:id="@+id/progressBar"
+        style="@android:style/Widget.ProgressBar.Horizontal"
+        android:layout_width="0dp"
+        android:layout_height="4dp"
+        android:indeterminate="true"
+        android:visibility="gone"
+        android:indeterminateTint="@color/accent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- FAB de sincronización -->
+    <FrameLayout
+        android:id="@+id/fabContainer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="16dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/containerResult">
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/fabSync"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:contentDescription="Sincronizar pendientes"
+            android:src="@android:drawable/stat_notify_sync"
+            app:backgroundTint="@color/primary"
+            app:tint="@color/white" />
+
+        <!-- Badge de pendientes -->
+        <TextView
+            android:id="@+id/textPendientes"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_gravity="top|end"
+            android:background="@color/error"
+            android:gravity="center"
+            android:textColor="@color/white"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:visibility="gone"
+            tools:text="3" />
+
+    </FrameLayout>
+
     <!-- Contenedor inferior con resultado -->
     <LinearLayout
         android:id="@+id/containerResult"
