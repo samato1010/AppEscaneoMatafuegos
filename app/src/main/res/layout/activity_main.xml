@@ -21,13 +21,30 @@
     <!-- Overlay de guía de escaneo -->
     <View
         android:id="@+id/scanOverlay"
-        android:layout_width="250dp"
-        android:layout_height="250dp"
+        android:layout_width="280dp"
+        android:layout_height="280dp"
         android:background="@drawable/scan_frame"
         app:layout_constraintTop_toTopOf="@id/previewView"
         app:layout_constraintBottom_toBottomOf="@id/previewView"
         app:layout_constraintStart_toStartOf="@id/previewView"
         app:layout_constraintEnd_toEndOf="@id/previewView" />
+
+    <!-- Texto instrucción sobre el marco -->
+    <TextView
+        android:id="@+id/textScanHint"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="ESCANEÁ EL QR"
+        android:textColor="#AAFFFFFF"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:letterSpacing="0.15"
+        android:layout_marginBottom="12dp"
+        android:padding="6dp"
+        android:background="#55000000"
+        app:layout_constraintBottom_toTopOf="@id/scanOverlay"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
 
     <!-- ProgressBar de carga -->
     <ProgressBar
@@ -41,6 +58,19 @@
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- Contador de escaneos en esquina superior izquierda -->
+    <TextView
+        android:id="@+id/textContador"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="0 escaneos"
+        android:textColor="#AAFFFFFF"
+        android:textSize="12sp"
+        android:padding="10dp"
+        android:background="#55000000"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
 
     <!-- FAB de sincronización -->
     <FrameLayout
@@ -83,9 +113,10 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="16dp"
-        android:background="#CC1B1B1B"
-        android:minHeight="120dp"
+        android:paddingHorizontal="20dp"
+        android:paddingVertical="16dp"
+        android:background="#EE1B1B1B"
+        android:minHeight="130dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
@@ -95,10 +126,10 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Apuntá la cámara al QR del matafuegos"
-            android:textColor="#AAAAAA"
-            android:textSize="14sp"
+            android:textColor="#BBBBBB"
+            android:textSize="15sp"
             android:gravity="center"
-            android:layout_marginBottom="8dp" />
+            android:layout_marginBottom="10dp" />
 
         <TextView
             android:id="@+id/textViewResult"
@@ -106,11 +137,12 @@
             android:layout_height="wrap_content"
             android:text="Esperando QR..."
             android:textColor="#FFFFFF"
-            android:textSize="16sp"
-            android:textStyle="bold"
+            android:textSize="14sp"
+            android:fontFamily="monospace"
             android:gravity="center"
-            android:maxLines="3"
-            android:ellipsize="middle" />
+            android:maxLines="4"
+            android:ellipsize="middle"
+            android:lineSpacingExtra="2dp" />
 
     </LinearLayout>
 

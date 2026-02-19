@@ -64,8 +64,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var cameraExecutor: ExecutorService
     private lateinit var repository: EscaneoRepository
 
-    // Prefijo válido de URLs de matafuegos AGC
-    private val URL_PREFIX = "https://dghpsh.agcontrol.gob.ar/matafuegos/datosEstampilla.jsp"
+    // Patrones válidos de URLs de matafuegos AGC
+    private val URL_PATTERNS = listOf(
+        "https://dghpsh.agcontrol.gob.ar/matafuegos/",
+        "http://dghpsh.agcontrol.gob.ar/matafuegos/",
+        "dghpsh.agcontrol.gob.ar/matafuegos/"
+    )
 
     // Evitar procesamiento duplicado en tiempo real
     private var lastProcessedUrl: String = ""
@@ -74,6 +78,9 @@ class MainActivity : AppCompatActivity() {
     // Job para hint de "no detecta QR"
     private var hintJob: Job? = null
     private var lastDetectionTime: Long = 0
+
+    // Contador de escaneos de la sesión
+    private var scanCount: Int = 0
 
     // Request de permiso de cámara
     private val cameraPermissionLauncher = registerForActivityResult(
@@ -185,10 +192,11 @@ class MainActivity : AppCompatActivity() {
                     // Actualizar timestamp de detección para hint
                     lastDetectionTime = System.currentTimeMillis()
 
-                    if (barcode.valueType == Barcode.TYPE_URL || barcode.valueType == Barcode.TYPE_TEXT) {
-                        val rawValue = barcode.rawValue ?: continue
-                        handleDetectedQR(rawValue)
-                    }
+                    // Aceptar CUALQUIER QR — no filtrar por valueType
+                    // ML Kit puede clasificar URLs como TYPE_URL, TYPE_TEXT u otro
+                    val rawValue = barcode.rawValue ?: continue
+                    Log.d(TAG, "QR detectado: type=${barcode.valueType}, raw=$rawValue")
+                    handleDetectedQR(rawValue)
                 }
             }
             .addOnFailureListener { e ->
@@ -200,14 +208,34 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
+     * Verifica si una URL corresponde a matafuegos AGC.
+     */
+    private fun esUrlMatafuegos(url: String): Boolean {
+        val lower = url.lowercase()
+        return URL_PATTERNS.any { lower.startsWith(it.lowercase()) }
+    }
+
+    /**
+     * Normaliza la URL para asegurar que tenga https://
+     */
+    private fun normalizarUrl(url: String): String {
+        return when {
+            url.startsWith("https://") -> url
+            url.startsWith("http://") -> url.replaceFirst("http://", "https://")
+            url.startsWith("dghpsh.") -> "https://$url"
+            else -> url
+        }
+    }
+
+    /**
      * Maneja un QR detectado: valida la URL, guarda en Room, envía al backend.
      */
     private fun handleDetectedQR(rawValue: String) {
         // Verificar si es URL válida de matafuegos
-        if (!rawValue.startsWith(URL_PREFIX)) {
+        if (!esUrlMatafuegos(rawValue)) {
             runOnUiThread {
-                binding.textViewStatus.text = "QR detectado (no es matafuegos)"
-                binding.textViewResult.text = rawValue.take(100)
+                binding.textViewStatus.text = "QR detectado (no es de matafuegos)"
+                binding.textViewResult.text = rawValue.take(150)
                 binding.textViewResult.setTextColor(
                     ContextCompat.getColor(this, R.color.error)
                 )
@@ -215,9 +243,14 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
+        // Normalizar URL
+        val url = normalizarUrl(rawValue)
+
         // Evitar procesamiento duplicado en la misma sesión
-        if (rawValue == lastProcessedUrl) return
-        lastProcessedUrl = rawValue
+        if (url == lastProcessedUrl) return
+        lastProcessedUrl = url
+
+        Log.d(TAG, "✅ QR válido de matafuegos: $url")
 
         // Vibrar al detectar QR válido
         vibrar()
@@ -225,7 +258,7 @@ class MainActivity : AppCompatActivity() {
         // Mostrar loading
         runOnUiThread {
             binding.textViewStatus.text = "⏳ Procesando..."
-            binding.textViewResult.text = rawValue
+            binding.textViewResult.text = url
             binding.textViewResult.setTextColor(
                 ContextCompat.getColor(this, R.color.white)
             )
@@ -236,7 +269,7 @@ class MainActivity : AppCompatActivity() {
         isProcessing = true
         lifecycleScope.launch {
             val result = withContext(Dispatchers.IO) {
-                repository.procesarEscaneo(rawValue)
+                repository.procesarEscaneo(url)
             }
 
             binding.progressBar.visibility = View.GONE
@@ -244,6 +277,8 @@ class MainActivity : AppCompatActivity() {
 
             when (result) {
                 is EscaneoRepository.EnvioResult.Enviado -> {
+                    scanCount++
+                    binding.textContador.text = "$scanCount escaneos"
                     binding.textViewStatus.text = "✅ Enviado al servidor"
                     binding.textViewResult.setTextColor(
                         ContextCompat.getColor(this@MainActivity, R.color.success)
@@ -251,6 +286,8 @@ class MainActivity : AppCompatActivity() {
                     showSnackbar("Escaneo enviado ✓")
                 }
                 is EscaneoRepository.EnvioResult.GuardadoOffline -> {
+                    scanCount++
+                    binding.textContador.text = "$scanCount escaneos"
                     binding.textViewStatus.text = "📱 Guardado offline (sin conexión)"
                     binding.textViewResult.setTextColor(
                         ContextCompat.getColor(this@MainActivity, R.color.warning)
