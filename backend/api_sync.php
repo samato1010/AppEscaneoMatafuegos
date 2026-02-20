@@ -24,6 +24,6 @@ try {
         'ok'    => 0,
         'fail'  => 0,
         'total' => 0,
-        'error' => 'Error interno del servidor.'
+        'error' => $e->getMessage()
     ]);
 }

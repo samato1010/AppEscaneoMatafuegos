@@ -43,4 +43,7 @@ interface EscaneoDao {
 
     @Query("SELECT COUNT(*) FROM escaneos")
     suspend fun contarTotal(): Int
+
+    @Query("DELETE FROM escaneos")
+    suspend fun limpiarTodo()
 }

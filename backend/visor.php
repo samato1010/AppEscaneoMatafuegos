@@ -2,7 +2,7 @@
 /**
  * Visor de Matafuegos Escaneados - Belga / HST SRL
  *
- * Muestra los registros de extintores de matafuegos con datos sincronizados
+ * Muestra los registros de extintores con datos sincronizados
  * desde el sistema AGC (dghpsh.agcontrol.gob.ar).
  */
 
@@ -81,12 +81,8 @@ $registros = $stmt->fetchAll();
             padding: 20px;
         }
 
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-        }
+        .container { max-width: 1400px; margin: 0 auto; }
 
-        /* Header */
         .header {
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
             color: white;
@@ -100,23 +96,10 @@ $registros = $stmt->fetchAll();
             gap: 15px;
         }
 
-        .header h1 {
-            font-size: 22px;
-            font-weight: 700;
-        }
+        .header h1 { font-size: 22px; font-weight: 700; }
+        .header .subtitle { font-size: 13px; color: #a0a0b0; margin-top: 4px; }
 
-        .header .subtitle {
-            font-size: 13px;
-            color: #a0a0b0;
-            margin-top: 4px;
-        }
-
-        /* Stats */
-        .stats {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
+        .stats { display: flex; gap: 10px; flex-wrap: wrap; }
 
         .stat {
             padding: 8px 16px;
@@ -128,13 +111,7 @@ $registros = $stmt->fetchAll();
             gap: 6px;
         }
 
-        .stat .dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            display: inline-block;
-        }
-
+        .stat .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
         .stat.cargado  { background: #d4edda; color: #155724; }
         .stat.cargado .dot  { background: #28a745; }
         .stat.pendiente { background: #fff3cd; color: #856404; }
@@ -144,7 +121,6 @@ $registros = $stmt->fetchAll();
         .stat.total    { background: #d1ecf1; color: #0c5460; }
         .stat.total .dot    { background: #17a2b8; }
 
-        /* Toolbar */
         .toolbar {
             display: flex;
             justify-content: space-between;
@@ -154,17 +130,8 @@ $registros = $stmt->fetchAll();
             gap: 10px;
         }
 
-        .filtro-grupo {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .filtro-grupo label {
-            font-size: 14px;
-            font-weight: 600;
-            color: #555;
-        }
+        .filtro-grupo { display: flex; align-items: center; gap: 8px; }
+        .filtro-grupo label { font-size: 14px; font-weight: 600; color: #555; }
 
         .filtro-grupo select {
             padding: 8px 12px;
@@ -191,15 +158,12 @@ $registros = $stmt->fetchAll();
         }
 
         .btn-sync:hover { background-color: #0056b3; transform: translateY(-1px); }
-        .btn-sync:active { transform: translateY(0); }
         .btn-sync:disabled { background-color: #6c757d; cursor: not-allowed; transform: none; }
-        .btn-sync .spinner { display: none; }
         .btn-sync.loading .spinner { display: inline-block; animation: spin 1s linear infinite; }
+        .btn-sync .spinner { display: none; }
         .btn-sync.loading .btn-text { display: none; }
-
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* Mensajes */
         .mensaje {
             padding: 12px 20px;
             border-radius: 8px;
@@ -211,7 +175,6 @@ $registros = $stmt->fetchAll();
         .mensaje.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
         .mensaje.info  { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
 
-        /* Tabla */
         .tabla-container {
             background: white;
             border-radius: 12px;
@@ -219,10 +182,7 @@ $registros = $stmt->fetchAll();
             box-shadow: 0 2px 8px rgba(0,0,0,0.08);
         }
 
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
+        table { width: 100%; border-collapse: collapse; }
 
         th {
             background: #f8f9fa;
@@ -247,21 +207,15 @@ $registros = $stmt->fetchAll();
         tr:hover { background-color: #f8f9fa; }
 
         td.url-cell {
-            max-width: 200px;
+            max-width: 180px;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
-            font-family: monospace;
-            font-size: 11px;
         }
 
-        td.url-cell a {
-            color: #007bff;
-            text-decoration: none;
-        }
+        td.url-cell a { color: #007bff; text-decoration: none; font-size: 12px; }
         td.url-cell a:hover { text-decoration: underline; }
 
-        /* Badges de estado */
         .badge {
             display: inline-block;
             padding: 4px 10px;
@@ -274,7 +228,6 @@ $registros = $stmt->fetchAll();
         .badge.cargado   { background: #d4edda; color: #155724; }
         .badge.error     { background: #f8d7da; color: #721c24; }
 
-        /* Paginacion */
         .paginacion {
             display: flex;
             justify-content: center;
@@ -291,15 +244,12 @@ $registros = $stmt->fetchAll();
             font-weight: 600;
         }
 
-        .paginacion a {
-            background: #e9ecef;
-            color: #495057;
-        }
+        .paginacion a { background: #e9ecef; color: #495057; }
         .paginacion a:hover { background: #007bff; color: white; }
         .paginacion span.actual { background: #007bff; color: white; }
-        .paginacion span.disabled { color: #ccc; }
 
-        /* Responsive */
+        .sin-datos { text-align: center; padding: 40px; color: #888; font-size: 16px; }
+
         @media (max-width: 900px) {
             body { padding: 10px; }
             .header { flex-direction: column; align-items: flex-start; }
@@ -307,19 +257,10 @@ $registros = $stmt->fetchAll();
             th, td { padding: 6px; }
             .tabla-container { overflow-x: auto; }
         }
-
-        /* Sin datos */
-        .sin-datos {
-            text-align: center;
-            padding: 40px;
-            color: #888;
-            font-size: 16px;
-        }
     </style>
 </head>
 <body>
     <div class="container">
-        <!-- Header -->
         <div class="header">
             <div>
                 <h1>Visor de Matafuegos Escaneados</h1>
@@ -333,12 +274,10 @@ $registros = $stmt->fetchAll();
             </div>
         </div>
 
-        <!-- Mensaje -->
         <?php if ($mensaje): ?>
             <div class="mensaje <?= $tipoMensaje ?>" id="mensaje"><?= htmlspecialchars($mensaje) ?></div>
         <?php endif; ?>
 
-        <!-- Toolbar -->
         <div class="toolbar">
             <div class="filtro-grupo">
                 <label for="filtroEstado">Filtrar:</label>
@@ -350,13 +289,12 @@ $registros = $stmt->fetchAll();
                 </select>
             </div>
 
-            <button class="btn-sync" id="btnSync" onclick="sincronizar()" <?= $contPendientes == 0 && $contError == 0 ? 'disabled' : '' ?>>
+            <button class="btn-sync" id="btnSync" onclick="sincronizar()" <?= ($contPendientes + $contError) == 0 ? 'disabled' : '' ?>>
                 <span class="spinner">&#8635;</span>
                 <span class="btn-text">Sincronizar Pendientes (<?= $contPendientes + $contError ?>)</span>
             </button>
         </div>
 
-        <!-- Tabla -->
         <div class="tabla-container">
             <?php if (empty($registros)): ?>
                 <div class="sin-datos">No hay registros <?= $filtroEstado ? "con estado \"$filtroEstado\"" : '' ?></div>
@@ -367,7 +305,6 @@ $registros = $stmt->fetchAll();
                             <th>Fecha</th>
                             <th>URL</th>
                             <th>Estado</th>
-                            <th>Nro. Tarjeta</th>
                             <th>Domicilio</th>
                             <th>Fabricante</th>
                             <th>Recargadora</th>
@@ -375,43 +312,35 @@ $registros = $stmt->fetchAll();
                             <th>Capacidad</th>
                             <th>Mantenimiento</th>
                             <th>Venc. Mant.</th>
-                            <th>Uso</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php foreach ($registros as $reg): ?>
                             <tr>
-                                <td style="white-space:nowrap"><?= htmlspecialchars($reg['fecha_escaneo'] ?? '-') ?></td>
+                                <td style="white-space:nowrap"><?= date('d/m/Y H:i', strtotime($reg['fecha_escaneo'])) ?></td>
                                 <td class="url-cell">
-                                    <a href="<?= htmlspecialchars($reg['url']) ?>" target="_blank" title="<?= htmlspecialchars($reg['url']) ?>">
-                                        <?= htmlspecialchars(substr($reg['url'], -40)) ?>
-                                    </a>
+                                    <a href="<?= htmlspecialchars($reg['url']) ?>" target="_blank" title="<?= htmlspecialchars($reg['url']) ?>">Ver en AGC</a>
                                 </td>
                                 <td><span class="badge <?= htmlspecialchars($reg['estado']) ?>"><?= htmlspecialchars($reg['estado']) ?></span></td>
-                                <td><?= htmlspecialchars($reg['nro_tarjeta'] ?? '-') ?></td>
                                 <td><?= htmlspecialchars($reg['domicilio'] ?? '-') ?></td>
                                 <td><?= htmlspecialchars($reg['fabricante'] ?? '-') ?></td>
                                 <td><?= htmlspecialchars($reg['recargadora'] ?? '-') ?></td>
-                                <td><?= htmlspecialchars($reg['agente'] ?? '-') ?></td>
+                                <td><?= htmlspecialchars($reg['agente_extintor'] ?? '-') ?></td>
                                 <td><?= htmlspecialchars($reg['capacidad'] ?? '-') ?></td>
                                 <td><?= htmlspecialchars($reg['fecha_mantenimiento'] ?? '-') ?></td>
-                                <td><?= htmlspecialchars($reg['venc_mantenimiento'] ?? '-') ?></td>
-                                <td><?= htmlspecialchars($reg['uso'] ?? '-') ?></td>
+                                <td><?= htmlspecialchars($reg['fecha_venc_mantenimiento'] ?? '-') ?></td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>
                 </table>
 
-                <!-- Paginacion -->
                 <?php if ($totalPaginas > 1): ?>
                     <div class="paginacion">
                         <?php
                         $queryBase = $filtroEstado ? "estado=$filtroEstado&" : '';
-
                         if ($pagina > 1): ?>
                             <a href="?<?= $queryBase ?>p=<?= $pagina - 1 ?>">&laquo; Anterior</a>
                         <?php endif; ?>
-
                         <?php for ($i = max(1, $pagina - 2); $i <= min($totalPaginas, $pagina + 2); $i++): ?>
                             <?php if ($i === $pagina): ?>
                                 <span class="actual"><?= $i ?></span>
@@ -419,7 +348,6 @@ $registros = $stmt->fetchAll();
                                 <a href="?<?= $queryBase ?>p=<?= $i ?>"><?= $i ?></a>
                             <?php endif; ?>
                         <?php endfor; ?>
-
                         <?php if ($pagina < $totalPaginas): ?>
                             <a href="?<?= $queryBase ?>p=<?= $pagina + 1 ?>">Siguiente &raquo;</a>
                         <?php endif; ?>
@@ -431,8 +359,7 @@ $registros = $stmt->fetchAll();
 
     <script>
         function filtrar(estado) {
-            const url = estado ? '?estado=' + estado : '?';
-            window.location.href = url;
+            window.location.href = estado ? '?estado=' + estado : '?';
         }
 
         async function sincronizar() {
@@ -451,7 +378,7 @@ $registros = $stmt->fetchAll();
                 } else if (data.total === 0) {
                     msg = 'No hay registros pendientes';
                 } else {
-                    msg = 'No se pudo sincronizar ningun registro (' + data.fail + ' fallidos)';
+                    msg = 'No se pudo sincronizar (' + data.fail + ' fallidos)';
                 }
 
                 alert(msg);
@@ -463,7 +390,6 @@ $registros = $stmt->fetchAll();
             }
         }
 
-        // Auto-ocultar mensaje despues de 5 segundos
         const msgEl = document.getElementById('mensaje');
         if (msgEl) {
             setTimeout(function() {

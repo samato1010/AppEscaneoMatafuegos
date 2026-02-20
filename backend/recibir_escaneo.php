@@ -30,8 +30,12 @@ if (!$input || empty($input['url'])) {
 
 $url = trim($input['url']);
 
+// Normalizar URL PRIMERO: forzar HTTPS, quitar puerto :80 si existe
+$url = str_replace('http://', 'https://', $url);
+$url = preg_replace('/:80\//', '/', $url);
+
 // Validar que la URL sea del sistema AGC
-if (stripos($url, 'agcontrol.gob.ar/matafuegos') === false) {
+if (stripos($url, 'agcontrol.gob.ar') === false || stripos($url, 'matafuegos') === false) {
     http_response_code(400);
     echo json_encode([
         'success' => false,
@@ -39,10 +43,6 @@ if (stripos($url, 'agcontrol.gob.ar/matafuegos') === false) {
     ]);
     exit;
 }
-
-// Normalizar URL: forzar HTTPS, quitar puerto :80 si existe
-$url = str_replace('http://', 'https://', $url);
-$url = preg_replace('/:80\//', '/', $url);
 
 try {
     $db = getDB();

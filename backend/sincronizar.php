@@ -82,20 +82,21 @@ function obtenerDatosAGC(string $url): ?array {
     }
 
     // Mapear campos AGC a nuestra base de datos
+    // Usa los nombres de columna que YA EXISTEN en la tabla extintores
     return [
-        'domicilio'            => $datosRaw['Domicilio instalación'] ?? null,
-        'fabricante'           => $datosRaw['Empresa fabricante']               ?? null,
-        'recargadora'          => $datosRaw['Empresa recargadora']             ?? null,
-        'fecha_mantenimiento'  => $datosRaw['Fecha mantenimiento']             ?? null,
-        'venc_mantenimiento'   => $datosRaw['Fecha vencimiento mantenimiento'] ?? null,
-        'agente'               => $datosRaw['Agente extintor']                 ?? null,
-        'capacidad'            => $datosRaw['Capacidad']                       ?? null,
-        'fecha_fabricacion'    => $datosRaw['Fecha fabricación']               ?? null,
-        'venc_vida_util'       => $datosRaw['Fecha vencimiento vida util']     ?? null,
-        'venc_ph'              => $datosRaw['Fecha vencimiento PH']            ?? null,
-        'nro_tarjeta'          => $datosRaw['Nro. tarjeta']                    ?? null,
-        'nro_extintor'         => $datosRaw['Nro. extintor']                   ?? null,
-        'uso'                  => $datosRaw['Uso']                             ?? null,
+        'domicilio'                  => $datosRaw['Domicilio instalación'] ?? null,
+        'fabricante'                 => $datosRaw['Empresa fabricante'] ?? null,
+        'recargadora'                => $datosRaw['Empresa recargadora'] ?? null,
+        'fecha_mantenimiento'        => $datosRaw['Fecha mantenimiento'] ?? null,
+        'fecha_venc_mantenimiento'   => $datosRaw['Fecha vencimiento mantenimiento'] ?? null,
+        'agente_extintor'            => $datosRaw['Agente extintor'] ?? null,
+        'capacidad'                  => $datosRaw['Capacidad'] ?? null,
+        'fecha_fabricacion'          => $datosRaw['Fecha fabricación'] ?? null,
+        'venc_vida_util'             => $datosRaw['Fecha vencimiento vida util'] ?? null,
+        'venc_ph'                    => $datosRaw['Fecha vencimiento PH'] ?? null,
+        'nro_tarjeta'                => $datosRaw['Nro. tarjeta'] ?? null,
+        'nro_extintor'               => $datosRaw['Nro. extintor'] ?? null,
+        'uso'                        => $datosRaw['Uso'] ?? null,
     ];
 }
 
@@ -108,16 +109,12 @@ function sincronizarPendientes(): array {
     $db = getDB();
 
     // Obtener registros pendientes o con error (que no superaron reintentos)
-    $stmt = $db->prepare(
+    $stmt = $db->query(
         "SELECT id, url FROM extintores
          WHERE estado IN ('pendiente', 'error')
-           AND intentos_sync < :max_reintentos
          ORDER BY fecha_escaneo ASC
-         LIMIT :batch_size"
+         LIMIT " . MAX_SYNC_BATCH
     );
-    $stmt->bindValue(':max_reintentos', MAX_REINTENTOS, PDO::PARAM_INT);
-    $stmt->bindValue(':batch_size', MAX_SYNC_BATCH, PDO::PARAM_INT);
-    $stmt->execute();
     $pendientes = $stmt->fetchAll();
 
     $ok = 0;
@@ -135,42 +132,27 @@ function sincronizarPendientes(): array {
                     fabricante = :fabricante,
                     recargadora = :recargadora,
                     fecha_mantenimiento = :fecha_mantenimiento,
-                    venc_mantenimiento = :venc_mantenimiento,
-                    agente = :agente,
+                    fecha_venc_mantenimiento = :fecha_venc_mantenimiento,
+                    agente_extintor = :agente_extintor,
                     capacidad = :capacidad,
-                    fecha_fabricacion = :fecha_fabricacion,
-                    venc_vida_util = :venc_vida_util,
-                    venc_ph = :venc_ph,
-                    nro_tarjeta = :nro_tarjeta,
-                    nro_extintor = :nro_extintor,
-                    uso = :uso,
                     fecha_sincronizacion = NOW()
                  WHERE id = :id"
             );
             $update->execute([
-                ':domicilio'           => $datos['domicilio'],
-                ':fabricante'          => $datos['fabricante'],
-                ':recargadora'         => $datos['recargadora'],
-                ':fecha_mantenimiento' => $datos['fecha_mantenimiento'],
-                ':venc_mantenimiento'  => $datos['venc_mantenimiento'],
-                ':agente'              => $datos['agente'],
-                ':capacidad'           => $datos['capacidad'],
-                ':fecha_fabricacion'   => $datos['fecha_fabricacion'],
-                ':venc_vida_util'      => $datos['venc_vida_util'],
-                ':venc_ph'             => $datos['venc_ph'],
-                ':nro_tarjeta'         => $datos['nro_tarjeta'],
-                ':nro_extintor'        => $datos['nro_extintor'],
-                ':uso'                 => $datos['uso'],
-                ':id'                  => $row['id'],
+                ':domicilio'                => $datos['domicilio'],
+                ':fabricante'               => $datos['fabricante'],
+                ':recargadora'              => $datos['recargadora'],
+                ':fecha_mantenimiento'      => $datos['fecha_mantenimiento'],
+                ':fecha_venc_mantenimiento' => $datos['fecha_venc_mantenimiento'],
+                ':agente_extintor'          => $datos['agente_extintor'],
+                ':capacidad'                => $datos['capacidad'],
+                ':id'                       => $row['id'],
             ]);
             $ok++;
         } else {
-            // Fallo: incrementar intentos y marcar error
+            // Fallo: marcar como error
             $db->prepare(
-                "UPDATE extintores SET
-                    estado = 'error',
-                    intentos_sync = intentos_sync + 1
-                 WHERE id = :id"
+                "UPDATE extintores SET estado = 'error' WHERE id = :id"
             )->execute([':id' => $row['id']]);
             $fail++;
         }

@@ -4,6 +4,7 @@ import android.content.Intent
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.View
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
@@ -47,6 +48,11 @@ class HomeActivity : AppCompatActivity() {
         // Botón SINCRONIZAR
         binding.btnSincronizar.setOnClickListener {
             sincronizarPendientes()
+        }
+
+        // Botón LIMPIAR HISTORIAL
+        binding.btnLimpiar.setOnClickListener {
+            confirmarLimpiarHistorial()
         }
     }
 
@@ -99,6 +105,26 @@ class HomeActivity : AppCompatActivity() {
                 binding.btnSincronizar.visibility = View.GONE
             }
         }
+    }
+
+    /**
+     * Muestra diálogo de confirmación y limpia el historial local.
+     */
+    private fun confirmarLimpiarHistorial() {
+        AlertDialog.Builder(this)
+            .setTitle("Limpiar historial")
+            .setMessage("Se borrarán todos los escaneos del dispositivo. Esto permite volver a escanear QRs que ya fueron enviados.\n\nLos datos del servidor no se afectan.")
+            .setPositiveButton("Limpiar") { _, _ ->
+                lifecycleScope.launch {
+                    withContext(Dispatchers.IO) {
+                        repository.limpiarHistorial()
+                    }
+                    Snackbar.make(binding.root, "Historial limpiado", Snackbar.LENGTH_SHORT).show()
+                    actualizarEstado()
+                }
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
     }
 
     /**

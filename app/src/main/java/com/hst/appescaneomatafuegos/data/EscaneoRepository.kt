@@ -177,6 +177,15 @@ class EscaneoRepository(
     suspend fun contarTotal(): Int = dao.contarTotal()
 
     /**
+     * Limpia todo el historial local de escaneos.
+     * Permite volver a escanear QRs que ya fueron enviados.
+     */
+    suspend fun limpiarHistorial() {
+        dao.limpiarTodo()
+        Log.d(TAG, "Historial local limpiado")
+    }
+
+    /**
      * Verifica si hay conexión a internet.
      */
     fun hayConexion(): Boolean {
