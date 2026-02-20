@@ -123,7 +123,16 @@ function sincronizarPendientes(): array {
     foreach ($pendientes as $row) {
         $datos = obtenerDatosAGC($row['url']);
 
-        if ($datos && !empty($datos['domicilio'])) {
+        // Verificar que haya ALGUN dato util (no solo domicilio, puede estar vacio)
+        $tieneDatos = $datos && (
+            !empty($datos['domicilio']) ||
+            !empty($datos['fabricante']) ||
+            !empty($datos['recargadora']) ||
+            !empty($datos['agente_extintor']) ||
+            !empty($datos['capacidad'])
+        );
+
+        if ($tieneDatos) {
             // Datos obtenidos exitosamente: actualizar registro a "cargado"
             $update = $db->prepare(
                 "UPDATE extintores SET
@@ -135,6 +144,12 @@ function sincronizarPendientes(): array {
                     fecha_venc_mantenimiento = :fecha_venc_mantenimiento,
                     agente_extintor = :agente_extintor,
                     capacidad = :capacidad,
+                    fecha_fabricacion = :fecha_fabricacion,
+                    venc_vida_util = :venc_vida_util,
+                    venc_ph = :venc_ph,
+                    nro_tarjeta = :nro_tarjeta,
+                    nro_extintor = :nro_extintor,
+                    uso = :uso,
                     fecha_sincronizacion = NOW()
                  WHERE id = :id"
             );
@@ -146,6 +161,12 @@ function sincronizarPendientes(): array {
                 ':fecha_venc_mantenimiento' => $datos['fecha_venc_mantenimiento'],
                 ':agente_extintor'          => $datos['agente_extintor'],
                 ':capacidad'                => $datos['capacidad'],
+                ':fecha_fabricacion'        => $datos['fecha_fabricacion'],
+                ':venc_vida_util'           => $datos['venc_vida_util'],
+                ':venc_ph'                  => $datos['venc_ph'],
+                ':nro_tarjeta'              => $datos['nro_tarjeta'],
+                ':nro_extintor'             => $datos['nro_extintor'],
+                ':uso'                      => $datos['uso'],
                 ':id'                       => $row['id'],
             ]);
             $ok++;
