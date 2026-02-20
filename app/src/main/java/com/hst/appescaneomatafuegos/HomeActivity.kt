@@ -106,7 +106,7 @@ class HomeActivity : AppCompatActivity() {
      */
     private fun sincronizarPendientes() {
         if (!repository.hayConexion()) {
-            Snackbar.make(binding.root, "Sin conexión a internet", Snackbar.LENGTH_SHORT)
+            Snackbar.make(binding.root, "Sin conexión a internet", Snackbar.LENGTH_LONG)
                 .setBackgroundTint(ContextCompat.getColor(this, R.color.error))
                 .show()
             return
@@ -116,7 +116,7 @@ class HomeActivity : AppCompatActivity() {
         binding.progressSync.visibility = View.VISIBLE
 
         lifecycleScope.launch {
-            val (enviados, fallidos) = withContext(Dispatchers.IO) {
+            val result = withContext(Dispatchers.IO) {
                 repository.sincronizarPendientes()
             }
 
@@ -124,14 +124,17 @@ class HomeActivity : AppCompatActivity() {
             binding.btnSincronizar.isEnabled = true
 
             val msg = when {
-                fallidos == 0 && enviados > 0 -> "✅ $enviados extintores sincronizados"
-                enviados == 0 && fallidos > 0 -> "❌ No se pudo sincronizar ($fallidos fallidos)"
-                enviados > 0 && fallidos > 0 -> "Sincronizados $enviados de ${enviados + fallidos}"
+                result.fallidos == 0 && result.enviados > 0 ->
+                    "✅ ${result.enviados} extintores sincronizados"
+                result.enviados == 0 && result.fallidos > 0 ->
+                    "❌ Error: ${result.ultimoError}"
+                result.enviados > 0 && result.fallidos > 0 ->
+                    "Parcial: ${result.enviados} OK, ${result.fallidos} fallidos\n${result.ultimoError}"
                 else -> "No hay pendientes"
             }
 
-            val isError = fallidos > 0 && enviados == 0
-            Snackbar.make(binding.root, msg, Snackbar.LENGTH_SHORT).apply {
+            val isError = result.fallidos > 0
+            Snackbar.make(binding.root, msg, Snackbar.LENGTH_LONG).apply {
                 if (isError) setBackgroundTint(ContextCompat.getColor(this@HomeActivity, R.color.error))
             }.show()
 

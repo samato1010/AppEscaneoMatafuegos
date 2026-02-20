@@ -112,36 +112,53 @@ class EscaneoRepository(
     }
 
     /**
-     * Sincroniza todos los escaneos pendientes.
-     * Retorna: Pair(enviados, fallidos)
+     * Resultado de sincronización masiva.
      */
-    suspend fun sincronizarPendientes(): Pair<Int, Int> {
+    data class SyncResult(val enviados: Int, val fallidos: Int, val ultimoError: String = "")
+
+    /**
+     * Sincroniza todos los escaneos pendientes.
+     */
+    suspend fun sincronizarPendientes(): SyncResult {
         val pendientes = dao.obtenerPendientes()
-        if (pendientes.isEmpty()) return Pair(0, 0)
+        if (pendientes.isEmpty()) return SyncResult(0, 0)
 
         var enviados = 0
         var fallidos = 0
+        var ultimoError = ""
+
+        Log.d(TAG, "=== SYNC: ${pendientes.size} pendientes ===")
 
         for (escaneo in pendientes) {
+            Log.d(TAG, "Sync intentando id=${escaneo.id} url=${escaneo.url}")
             try {
                 val response = api.enviarEscaneo(EscaneoRequest(url = escaneo.url))
-                if (response.isSuccessful) {
+                val code = response.code()
+                val body = response.body()
+                val errorBody = response.errorBody()?.string()
+
+                Log.d(TAG, "Sync respuesta id=${escaneo.id}: HTTP $code, success=${body?.success}, msg=${body?.message}, error=$errorBody")
+
+                if (response.isSuccessful && body?.success == true) {
                     dao.marcarEnviado(escaneo.id)
                     enviados++
                     Log.d(TAG, "Sync OK: id=${escaneo.id}")
                 } else {
                     dao.incrementarIntentos(escaneo.id)
                     fallidos++
-                    Log.w(TAG, "Sync error ${response.code()}: id=${escaneo.id}")
+                    ultimoError = body?.message ?: errorBody ?: "HTTP $code"
+                    Log.w(TAG, "Sync falló id=${escaneo.id}: $ultimoError")
                 }
             } catch (e: Exception) {
                 dao.incrementarIntentos(escaneo.id)
                 fallidos++
-                Log.e(TAG, "Sync exception: id=${escaneo.id} - ${e.message}")
+                ultimoError = "${e.javaClass.simpleName}: ${e.message}"
+                Log.e(TAG, "Sync exception id=${escaneo.id}: $ultimoError")
             }
         }
 
-        return Pair(enviados, fallidos)
+        Log.d(TAG, "=== SYNC COMPLETO: $enviados OK, $fallidos fallidos, error='$ultimoError' ===")
+        return SyncResult(enviados, fallidos, ultimoError)
     }
 
     /**

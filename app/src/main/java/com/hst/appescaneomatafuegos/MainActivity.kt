@@ -374,7 +374,7 @@ class MainActivity : AppCompatActivity() {
 
             showSnackbar("Sincronizando $pendientes escaneos...")
 
-            val (enviados, fallidos) = withContext(Dispatchers.IO) {
+            val result = withContext(Dispatchers.IO) {
                 repository.sincronizarPendientes()
             }
 
@@ -382,11 +382,11 @@ class MainActivity : AppCompatActivity() {
             binding.fabSync.isEnabled = true
 
             val msg = when {
-                fallidos == 0 -> "✅ $enviados escaneos sincronizados"
-                enviados == 0 -> "❌ No se pudo sincronizar ($fallidos fallidos)"
-                else -> "Sincronizados $enviados de ${enviados + fallidos}"
+                result.fallidos == 0 -> "✅ ${result.enviados} sincronizados"
+                result.enviados == 0 -> "❌ ${result.ultimoError}"
+                else -> "${result.enviados} OK, ${result.fallidos} fallidos"
             }
-            showSnackbar(msg, error = fallidos > 0 && enviados == 0)
+            showSnackbar(msg, error = result.fallidos > 0 && result.enviados == 0)
 
             actualizarBadgePendientes()
         }

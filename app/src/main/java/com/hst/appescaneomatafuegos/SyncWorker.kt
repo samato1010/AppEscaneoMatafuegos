@@ -35,10 +35,10 @@ class SyncWorker(
         }
 
         Log.d(TAG, "Sincronizando $pendientes escaneos pendientes...")
-        val (enviados, fallidos) = repo.sincronizarPendientes()
+        val result = repo.sincronizarPendientes()
 
-        Log.d(TAG, "Sync completado: $enviados enviados, $fallidos fallidos")
+        Log.d(TAG, "Sync completado: ${result.enviados} enviados, ${result.fallidos} fallidos, error=${result.ultimoError}")
 
-        return if (fallidos > 0) Result.retry() else Result.success()
+        return if (result.fallidos > 0) Result.retry() else Result.success()
     }
 }
