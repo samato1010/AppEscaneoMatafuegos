@@ -64,11 +64,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var cameraExecutor: ExecutorService
     private lateinit var repository: EscaneoRepository
 
-    // Patrones válidos de URLs de matafuegos AGC
-    private val URL_PATTERNS = listOf(
-        "https://dghpsh.agcontrol.gob.ar/matafuegos/",
-        "http://dghpsh.agcontrol.gob.ar/matafuegos/",
-        "dghpsh.agcontrol.gob.ar/matafuegos/"
+    // Palabras clave que identifican una URL de matafuegos AGC
+    // Usamos contains() para ser flexibles con prefijos, espacios, etc.
+    private val URL_KEYWORDS = listOf(
+        "agcontrol.gob.ar/matafuegos",
+        "agcontrol.gob.ar\\matafuegos",   // por si viene con backslash
+        "datosestampilla.jsp"              // la página específica de estampilla
     )
 
     // Evitar procesamiento duplicado en tiempo real
@@ -195,7 +196,11 @@ class MainActivity : AppCompatActivity() {
                     // Aceptar CUALQUIER QR — no filtrar por valueType
                     // ML Kit puede clasificar URLs como TYPE_URL, TYPE_TEXT u otro
                     val rawValue = barcode.rawValue ?: continue
-                    Log.d(TAG, "QR detectado: type=${barcode.valueType}, raw=$rawValue")
+                    val displayValue = barcode.displayValue ?: "(null)"
+                    Log.d(TAG, "QR detectado: type=${barcode.valueType}, format=${barcode.format}")
+                    Log.d(TAG, "  rawValue='$rawValue'")
+                    Log.d(TAG, "  displayValue='$displayValue'")
+                    Log.d(TAG, "  url=${barcode.url?.url ?: "(null)"}")
                     handleDetectedQR(rawValue)
                 }
             }
@@ -209,21 +214,47 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * Verifica si una URL corresponde a matafuegos AGC.
+     * Usa contains() para ser flexible con prefijos, espacios, caracteres invisibles, etc.
      */
     private fun esUrlMatafuegos(url: String): Boolean {
-        val lower = url.lowercase()
-        return URL_PATTERNS.any { lower.startsWith(it.lowercase()) }
+        val cleaned = url.trim().lowercase()
+        Log.d(TAG, "Validando URL: '$cleaned' (len=${cleaned.length}, bytes=${cleaned.toByteArray().joinToString(",") { it.toString() }})")
+        return URL_KEYWORDS.any { keyword -> cleaned.contains(keyword.lowercase()) }
     }
 
     /**
-     * Normaliza la URL para asegurar que tenga https://
+     * Extrae y normaliza la URL de matafuegos del rawValue del QR.
+     * Busca la URL dentro del texto y la limpia.
      */
-    private fun normalizarUrl(url: String): String {
+    private fun normalizarUrl(rawValue: String): String {
+        val cleaned = rawValue.trim()
+
+        // Buscar URL dentro del texto (por si hay prefijos basura)
+        val urlRegex = Regex("""(https?://[^\s]+agcontrol\.gob\.ar/matafuegos/[^\s]*)""", RegexOption.IGNORE_CASE)
+        val match = urlRegex.find(cleaned)
+        if (match != null) {
+            val url = match.value
+            // Forzar https
+            return if (url.startsWith("http://")) {
+                url.replaceFirst("http://", "https://")
+            } else {
+                url
+            }
+        }
+
+        // Si no matcheó regex pero contiene el dominio, intentar armar la URL
+        val domainRegex = Regex("""(dghpsh\.agcontrol\.gob\.ar/matafuegos/[^\s]*)""", RegexOption.IGNORE_CASE)
+        val domainMatch = domainRegex.find(cleaned)
+        if (domainMatch != null) {
+            return "https://${domainMatch.value}"
+        }
+
+        // Fallback: limpiar y poner https si no tiene protocolo
         return when {
-            url.startsWith("https://") -> url
-            url.startsWith("http://") -> url.replaceFirst("http://", "https://")
-            url.startsWith("dghpsh.") -> "https://$url"
-            else -> url
+            cleaned.startsWith("https://") -> cleaned
+            cleaned.startsWith("http://") -> cleaned.replaceFirst("http://", "https://")
+            cleaned.contains("agcontrol.gob.ar") -> "https://$cleaned"
+            else -> cleaned
         }
     }
 
@@ -231,11 +262,16 @@ class MainActivity : AppCompatActivity() {
      * Maneja un QR detectado: valida la URL, guarda en Room, envía al backend.
      */
     private fun handleDetectedQR(rawValue: String) {
+        // Limpiar el valor crudo (trim whitespace y caracteres de control)
+        val cleanedValue = rawValue.trim().replace(Regex("[\\x00-\\x1F\\x7F]"), "")
+
+        Log.d(TAG, "handleDetectedQR raw='$rawValue' cleaned='$cleanedValue'")
+
         // Verificar si es URL válida de matafuegos
-        if (!esUrlMatafuegos(rawValue)) {
+        if (!esUrlMatafuegos(cleanedValue)) {
             runOnUiThread {
                 binding.textViewStatus.text = "QR detectado (no es de matafuegos)"
-                binding.textViewResult.text = rawValue.take(150)
+                binding.textViewResult.text = cleanedValue.take(200)
                 binding.textViewResult.setTextColor(
                     ContextCompat.getColor(this, R.color.error)
                 )
@@ -244,7 +280,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Normalizar URL
-        val url = normalizarUrl(rawValue)
+        val url = normalizarUrl(cleanedValue)
 
         // Evitar procesamiento duplicado en la misma sesión
         if (url == lastProcessedUrl) return
