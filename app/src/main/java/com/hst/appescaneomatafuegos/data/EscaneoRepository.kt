@@ -32,20 +32,38 @@ class EscaneoRepository(
         data object Enviado : EnvioResult()
         data object GuardadoOffline : EnvioResult()
         data object Duplicado : EnvioResult()
+        data class ReEscaneado(val mensaje: String) : EnvioResult()
         data class Error(val mensaje: String) : EnvioResult()
     }
 
     /**
      * Procesa un nuevo escaneo: guarda en Room e intenta enviar.
+     * Si ya fue enviado antes, re-envía para registrar en historial del servidor.
      */
     suspend fun procesarEscaneo(url: String): EnvioResult {
-        // Verificar duplicados
-        if (dao.yaEnviado(url) > 0) {
-            Log.d(TAG, "URL ya enviada previamente: $url")
+        val yaEnviado = dao.yaEnviado(url) > 0
+
+        if (yaEnviado) {
+            // Ya existe en Room como enviado → re-escaneo
+            Log.d(TAG, "Re-escaneo de URL ya enviada: $url")
+
+            if (!hayConexion()) {
+                Log.d(TAG, "Sin conexión - no se puede registrar re-escaneo")
+                return EnvioResult.Error("Sin conexión para registrar re-escaneo")
+            }
+
+            // Enviar al servidor (registrará en historial_escaneos)
+            return intentarReEscaneo(url)
+        }
+
+        // Verificar si existe pero pendiente (aún no enviado)
+        val existePendiente = dao.existeUrl(url) > 0
+        if (existePendiente) {
+            Log.d(TAG, "URL pendiente de envío: $url")
             return EnvioResult.Duplicado
         }
 
-        // Guardar en Room
+        // Nuevo escaneo: guardar en Room
         val entity = EscaneoEntity(url = url)
         val id = dao.insertar(entity).toInt()
         Log.d(TAG, "Escaneo guardado en Room con id=$id")
@@ -57,6 +75,31 @@ class EscaneoRepository(
         }
 
         return intentarEnvio(id, url)
+    }
+
+    /**
+     * Envía re-escaneo al servidor para registrar en historial.
+     * No guarda en Room (ya existe).
+     */
+    private suspend fun intentarReEscaneo(url: String): EnvioResult {
+        return try {
+            Log.d(TAG, ">>> Re-escaneo enviando a backend: url=$url")
+            val response = api.enviarEscaneo(EscaneoRequest(url = url))
+            val body = response.body()
+
+            if (response.isSuccessful && body?.success == true) {
+                val msg = body.message
+                Log.d(TAG, "Re-escaneo registrado OK: $msg")
+                EnvioResult.ReEscaneado(msg)
+            } else {
+                val msg = body?.message ?: "Error al registrar re-escaneo"
+                Log.w(TAG, "Re-escaneo rechazado: $msg")
+                EnvioResult.Error(msg)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error en re-escaneo: ${e.message}")
+            EnvioResult.Error("Error de red: ${e.localizedMessage}")
+        }
     }
 
     /**

@@ -53,11 +53,24 @@ try {
     $existente = $check->fetch();
 
     if ($existente) {
+        // Registrar re-escaneo en historial
+        $historial = $db->prepare(
+            "INSERT INTO historial_escaneos (extintor_id, fecha_escaneo, origen)
+             VALUES (:eid, NOW(), 'app_android')"
+        );
+        $historial->execute([':eid' => $existente['id']]);
+
+        // Contar total de escaneos de este extintor
+        $countStmt = $db->prepare("SELECT COUNT(*) FROM historial_escaneos WHERE extintor_id = :eid");
+        $countStmt->execute([':eid' => $existente['id']]);
+        $totalEscaneos = (int)$countStmt->fetchColumn();
+
         echo json_encode([
             'success' => true,
-            'message' => 'URL ya registrada previamente.',
+            'message' => "Extintor re-escaneado. Escaneo #$totalEscaneos registrado.",
             'duplicado' => true,
-            'estado' => $existente['estado']
+            'estado' => $existente['estado'],
+            'escaneos_total' => $totalEscaneos
         ]);
         exit;
     }
@@ -68,6 +81,14 @@ try {
          VALUES (:url, NOW(), 'pendiente', 0)"
     );
     $stmt->execute([':url' => $url]);
+    $nuevoId = (int)$db->lastInsertId();
+
+    // Registrar primer escaneo en historial
+    $historial = $db->prepare(
+        "INSERT INTO historial_escaneos (extintor_id, fecha_escaneo, origen)
+         VALUES (:eid, NOW(), 'app_android')"
+    );
+    $historial->execute([':eid' => $nuevoId]);
 
     echo json_encode([
         'success' => true,

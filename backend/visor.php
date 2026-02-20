@@ -35,6 +35,40 @@ if (isset($_GET['exportar']) && $_GET['exportar'] === 'csv') {
     exit;
 }
 
+// === API HISTORIAL DE ESCANEOS POR EXTINTOR ===
+if (isset($_GET['api']) && $_GET['api'] === 'historial' && isset($_GET['id'])) {
+    header('Content-Type: application/json; charset=utf-8');
+    $db = getDB();
+    $extintorId = (int)$_GET['id'];
+
+    // Datos del extintor
+    $stmtExt = $db->prepare("SELECT id, url, domicilio, nro_extintor, nro_tarjeta, fecha_escaneo FROM extintores WHERE id = :id");
+    $stmtExt->execute([':id' => $extintorId]);
+    $extintor = $stmtExt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$extintor) {
+        echo json_encode(['error' => 'Extintor no encontrado']);
+        exit;
+    }
+
+    // Historial de escaneos
+    $stmtHist = $db->prepare(
+        "SELECT id, fecha_escaneo, origen
+         FROM historial_escaneos
+         WHERE extintor_id = :eid
+         ORDER BY fecha_escaneo DESC"
+    );
+    $stmtHist->execute([':eid' => $extintorId]);
+    $historial = $stmtHist->fetchAll(PDO::FETCH_ASSOC);
+
+    echo json_encode([
+        'extintor' => $extintor,
+        'historial' => $historial,
+        'total_escaneos' => count($historial)
+    ]);
+    exit;
+}
+
 // === DATOS API PARA AUTO-REFRESH ===
 if (isset($_GET['api']) && $_GET['api'] === 'datos') {
     header('Content-Type: application/json; charset=utf-8');
@@ -51,12 +85,12 @@ if (isset($_GET['api']) && $_GET['api'] === 'datos') {
     $params = [];
 
     if (in_array($filtroEstado, $filtrosValidos)) {
-        $where[] = "estado = :estado";
+        $where[] = "e.estado = :estado";
         $params[':estado'] = $filtroEstado;
     }
 
     if ($busqueda !== '') {
-        $where[] = "(domicilio LIKE :q1 OR fabricante LIKE :q2 OR recargadora LIKE :q3 OR nro_extintor LIKE :q4 OR nro_tarjeta LIKE :q5 OR agente_extintor LIKE :q6)";
+        $where[] = "(e.domicilio LIKE :q1 OR e.fabricante LIKE :q2 OR e.recargadora LIKE :q3 OR e.nro_extintor LIKE :q4 OR e.nro_tarjeta LIKE :q5 OR e.agente_extintor LIKE :q6)";
         $params[':q1'] = "%$busqueda%";
         $params[':q2'] = "%$busqueda%";
         $params[':q3'] = "%$busqueda%";
@@ -73,14 +107,22 @@ if (isset($_GET['api']) && $_GET['api'] === 'datos') {
     $contError      = $db->query("SELECT COUNT(*) FROM extintores WHERE estado = 'error'")->fetchColumn();
     $contTotal      = $db->query("SELECT COUNT(*) FROM extintores")->fetchColumn();
 
-    // Total filtrado
-    $stmtCount = $db->prepare("SELECT COUNT(*) FROM extintores $whereSQL");
+    // Total filtrado (usa alias 'e' para coincidir con WHERE)
+    $stmtCount = $db->prepare("SELECT COUNT(*) FROM extintores e $whereSQL");
     $stmtCount->execute($params);
     $totalFiltrado = $stmtCount->fetchColumn();
     $totalPaginas = max(1, ceil($totalFiltrado / $porPagina));
 
-    // Registros
-    $stmt = $db->prepare("SELECT * FROM extintores $whereSQL ORDER BY fecha_escaneo DESC LIMIT $porPagina OFFSET $offset");
+    // Registros con conteo de escaneos del historial
+    $stmt = $db->prepare(
+        "SELECT e.*, COALESCE(h.cnt, 0) AS total_escaneos
+         FROM extintores e
+         LEFT JOIN (SELECT extintor_id, COUNT(*) AS cnt FROM historial_escaneos GROUP BY extintor_id) h
+           ON h.extintor_id = e.id
+         $whereSQL
+         ORDER BY e.fecha_escaneo DESC
+         LIMIT $porPagina OFFSET $offset"
+    );
     $stmt->execute($params);
     $registros = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -482,6 +524,157 @@ $contTotal      = $db->query("SELECT COUNT(*) FROM extintores")->fetchColumn();
         }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 
+        /* === LUPA HISTORIAL === */
+        .btn-historial {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            padding: 4px 8px;
+            border-radius: 6px;
+            transition: all 0.15s;
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .btn-historial:hover { background: var(--blue-bg); transform: scale(1.1); }
+        .btn-historial .hist-badge {
+            font-size: 10px;
+            font-weight: 800;
+            background: var(--blue);
+            color: white;
+            border-radius: 10px;
+            padding: 1px 5px;
+            min-width: 16px;
+            text-align: center;
+            line-height: 14px;
+        }
+
+        /* === MODAL HISTORIAL === */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+            animation: fadeIn 0.2s ease;
+        }
+        .modal-overlay.active { display: flex; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        .modal {
+            background: white;
+            border-radius: var(--radius);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 520px;
+            width: 90%;
+            max-height: 80vh;
+            overflow: hidden;
+            animation: modalSlideIn 0.3s ease;
+        }
+        @keyframes modalSlideIn { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+        .modal-header {
+            padding: 18px 22px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f8fafc;
+        }
+        .modal-header h3 {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .modal-header .close-btn {
+            background: none;
+            border: none;
+            font-size: 22px;
+            cursor: pointer;
+            color: var(--text-muted);
+            padding: 4px;
+            border-radius: 6px;
+            line-height: 1;
+        }
+        .modal-header .close-btn:hover { background: var(--red-bg); color: var(--red); }
+
+        .modal-body {
+            padding: 18px 22px;
+            overflow-y: auto;
+            max-height: calc(80vh - 80px);
+        }
+
+        .modal-extintor-info {
+            background: var(--blue-bg);
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 13px;
+        }
+        .modal-extintor-info strong { color: var(--blue-text); }
+
+        .timeline { position: relative; padding-left: 28px; }
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 10px;
+            top: 8px;
+            bottom: 8px;
+            width: 2px;
+            background: var(--border);
+        }
+
+        .timeline-item {
+            position: relative;
+            padding: 10px 0;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .timeline-item:last-child { border-bottom: none; }
+
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -22px;
+            top: 16px;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--blue);
+            border: 2px solid white;
+            box-shadow: 0 0 0 2px var(--blue);
+        }
+        .timeline-item:first-child::before { background: var(--green); box-shadow: 0 0 0 2px var(--green); }
+
+        .timeline-fecha {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text);
+        }
+        .timeline-origen {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+        .timeline-numero {
+            font-size: 11px;
+            color: var(--blue);
+            font-weight: 700;
+        }
+
+        .modal-loading {
+            text-align: center;
+            padding: 30px;
+            color: var(--text-muted);
+        }
+
         /* === RESPONSIVE === */
         @media (max-width: 900px) {
             body { padding: 10px; }
@@ -557,6 +750,7 @@ $contTotal      = $db->query("SELECT COUNT(*) FROM extintores")->fetchColumn();
             <table>
                 <thead>
                     <tr>
+                        <th style="width:50px;text-align:center" title="Historial de escaneos">Hist.</th>
                         <th>Fecha</th>
                         <th>Estado</th>
                         <th>Domicilio</th>
@@ -582,6 +776,19 @@ $contTotal      = $db->query("SELECT COUNT(*) FROM extintores")->fetchColumn();
         <div class="cards-container" id="cardsContainer">
         </div>
         <div id="paginacionMobile" class="paginacion" style="display:none"></div>
+    </div>
+
+    <!-- Modal Historial -->
+    <div class="modal-overlay" id="modalHistorial" onclick="cerrarModal(event)">
+        <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3>&#128269; Historial de Escaneos</h3>
+                <button class="close-btn" onclick="cerrarModalHistorial()">&times;</button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <div class="modal-loading">Cargando historial...</div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -663,7 +870,11 @@ $contTotal      = $db->query("SELECT COUNT(*) FROM extintores")->fetchColumn();
         let html = '';
         registros.forEach((r, idx) => {
             const vencInfo = calcularVencimiento(r.fecha_venc_mantenimiento);
+            const totalEscaneos = parseInt(r.total_escaneos) || 0;
+            const badgeHtml = totalEscaneos > 1 ? `<span class='hist-badge'>${totalEscaneos}</span>` : '';
+            const lupaHtml = `<button class="btn-historial" onclick="event.stopPropagation(); verHistorial(${r.id})" title="Ver historial de escaneos">&#128269;${badgeHtml}</button>`;
             html += `<tr onclick="toggleDetalle(${idx})">
+                <td style="text-align:center">${lupaHtml}</td>
                 <td style="white-space:nowrap">${formatFecha(r.fecha_escaneo)}</td>
                 <td><span class="badge ${esc(r.estado)}">${esc(r.estado)}</span></td>
                 <td>${esc(r.domicilio || '-')}</td>
@@ -675,7 +886,7 @@ $contTotal      = $db->query("SELECT COUNT(*) FROM extintores")->fetchColumn();
                 <td>${vencInfo.diasHtml}</td>
             </tr>`;
             html += `<tr class="detalle-row" id="detalle-${idx}" style="display:none">
-                <td colspan="9">
+                <td colspan="10">
                     <div class="detalle-content">
                         <div class="detalle-item"><span class="detalle-label">URL AGC</span><span class="detalle-valor"><a href="${esc(r.url)}" target="_blank" style="color:var(--blue)">Ver en AGC &#8599;</a></span></div>
                         <div class="detalle-item"><span class="detalle-label">Domicilio</span><span class="detalle-valor">${esc(r.domicilio || '-')}</span></div>
@@ -738,8 +949,11 @@ $contTotal      = $db->query("SELECT COUNT(*) FROM extintores")->fetchColumn();
                         <div><div class="card-field-label">Nro. Extintor</div><div class="card-field-value">${esc(r.nro_extintor || '-')}</div></div>
                         <div><div class="card-field-label">Uso</div><div class="card-field-value">${esc(r.uso || '-')}</div></div>
                     </div>
-                    <div style="margin-top:12px">
+                    <div style="margin-top:12px;display:flex;justify-content:space-between;align-items:center">
                         <a href="${esc(r.url)}" target="_blank" style="color:var(--blue);font-size:13px;font-weight:600">Ver en AGC &#8599;</a>
+                        <button class="btn-historial" onclick="event.stopPropagation(); verHistorial(${r.id})" title="Ver historial">
+                            &#128269; Historial ${parseInt(r.total_escaneos) > 1 ? '<span class="hist-badge">' + r.total_escaneos + '</span>' : ''}
+                        </button>
                     </div>
                 </div>
             </div>`;
@@ -942,6 +1156,78 @@ $contTotal      = $db->query("SELECT COUNT(*) FROM extintores")->fetchColumn();
         const el = document.getElementById('refreshCountdown');
         if (el) el.textContent = state.refreshCountdown;
     }
+
+    // === HISTORIAL DE ESCANEOS ===
+    async function verHistorial(extintorId) {
+        const modal = document.getElementById('modalHistorial');
+        const body = document.getElementById('modalBody');
+
+        modal.classList.add('active');
+        body.innerHTML = '<div class="modal-loading">&#8987; Cargando historial...</div>';
+
+        try {
+            const resp = await fetch(`visor.php?api=historial&id=${extintorId}`);
+            const data = await resp.json();
+
+            if (data.error) {
+                body.innerHTML = `<div class="modal-loading">${esc(data.error)}</div>`;
+                return;
+            }
+
+            let html = '';
+
+            // Info del extintor
+            const ext = data.extintor;
+            html += `<div class="modal-extintor-info">
+                <strong>Extintor #${ext.id}</strong><br>
+                ${ext.domicilio ? esc(ext.domicilio) + '<br>' : ''}
+                ${ext.nro_extintor ? 'Nro: ' + esc(ext.nro_extintor) + ' | ' : ''}
+                ${ext.nro_tarjeta ? 'Tarjeta: ' + esc(ext.nro_tarjeta) : ''}
+                <br><strong>${data.total_escaneos} escaneo${data.total_escaneos !== 1 ? 's' : ''} registrado${data.total_escaneos !== 1 ? 's' : ''}</strong>
+            </div>`;
+
+            if (data.historial.length === 0) {
+                html += '<div style="text-align:center;padding:20px;color:var(--text-muted)">Sin historial de escaneos</div>';
+            } else {
+                html += '<div class="timeline">';
+                data.historial.forEach((h, i) => {
+                    const numero = data.total_escaneos - i;
+                    const origenLabel = {
+                        'app_android': '&#128241; App Android',
+                        'migracion': '&#128190; Registro original',
+                        'web': '&#127760; Web'
+                    }[h.origen] || esc(h.origen);
+
+                    html += `<div class="timeline-item">
+                        <span class="timeline-numero">Escaneo #${numero}</span>
+                        <div class="timeline-fecha">${formatFechaFull(h.fecha_escaneo)}</div>
+                        <div class="timeline-origen">${origenLabel}</div>
+                    </div>`;
+                });
+                html += '</div>';
+            }
+
+            body.innerHTML = html;
+        } catch (e) {
+            body.innerHTML = '<div class="modal-loading" style="color:var(--red)">Error al cargar historial</div>';
+            console.error('Error cargando historial:', e);
+        }
+    }
+
+    function cerrarModal(event) {
+        if (event.target === document.getElementById('modalHistorial')) {
+            cerrarModalHistorial();
+        }
+    }
+
+    function cerrarModalHistorial() {
+        document.getElementById('modalHistorial').classList.remove('active');
+    }
+
+    // Cerrar modal con Escape
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') cerrarModalHistorial();
+    });
     </script>
 </body>
 </html>

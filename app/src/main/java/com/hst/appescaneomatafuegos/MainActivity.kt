@@ -288,9 +288,17 @@ class MainActivity : AppCompatActivity() {
         // Normalizar URL
         val url = normalizarUrl(cleanedValue)
 
-        // Evitar procesamiento duplicado en la misma sesión
+        // Evitar procesamiento duplicado del mismo frame (cooldown 3s)
         if (url == lastProcessedUrl) return
         lastProcessedUrl = url
+
+        // Resetear después de 3s para permitir re-escaneo intencional
+        lifecycleScope.launch {
+            delay(3000)
+            if (lastProcessedUrl == url) {
+                lastProcessedUrl = ""
+            }
+        }
 
         Log.d(TAG, "✅ QR válido de matafuegos: $url")
 
@@ -337,11 +345,20 @@ class MainActivity : AppCompatActivity() {
                     showSnackbar("Sin conexión — guardado para enviar después", warning = true)
                 }
                 is EscaneoRepository.EnvioResult.Duplicado -> {
-                    binding.textViewStatus.text = "ℹ️ Ya escaneado previamente"
+                    binding.textViewStatus.text = "ℹ️ Pendiente de envío"
                     binding.textViewResult.setTextColor(
                         ContextCompat.getColor(this@MainActivity, R.color.primary)
                     )
-                    showSnackbar("Este QR ya fue enviado")
+                    showSnackbar("Este QR está pendiente de envío")
+                }
+                is EscaneoRepository.EnvioResult.ReEscaneado -> {
+                    scanCount++
+                    binding.textContador.text = "$scanCount escaneos"
+                    binding.textViewStatus.text = "🔄 Re-escaneo registrado"
+                    binding.textViewResult.setTextColor(
+                        ContextCompat.getColor(this@MainActivity, R.color.success)
+                    )
+                    showSnackbar(result.mensaje)
                 }
                 is EscaneoRepository.EnvioResult.Error -> {
                     binding.textViewStatus.text = "⚠️ ${result.mensaje}"
