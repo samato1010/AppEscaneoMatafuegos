@@ -37,4 +37,10 @@ interface EscaneoDao {
 
     @Query("UPDATE escaneos SET intentos = intentos + 1 WHERE id = :id")
     suspend fun incrementarIntentos(id: Int)
+
+    @Query("SELECT COUNT(*) FROM escaneos WHERE estado = 'enviado'")
+    suspend fun contarEnviados(): Int
+
+    @Query("SELECT COUNT(*) FROM escaneos")
+    suspend fun contarTotal(): Int
 }

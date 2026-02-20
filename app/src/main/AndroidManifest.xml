@@ -24,8 +24,9 @@
         android:theme="@style/Theme.AppEscaneoMatafuegos"
         tools:targetApi="35">
 
+        <!-- Pantalla de inicio -->
         <activity
-            android:name=".MainActivity"
+            android:name=".HomeActivity"
             android:exported="true"
             android:screenOrientation="portrait">
             <intent-filter>
@@ -33,6 +34,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Pantalla de escaneo (cámara) -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
 
     </application>
 

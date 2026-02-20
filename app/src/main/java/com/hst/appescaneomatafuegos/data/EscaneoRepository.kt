@@ -122,6 +122,16 @@ class EscaneoRepository(
     suspend fun contarPendientes(): Int = dao.contarPendientes()
 
     /**
+     * Cantidad de escaneos enviados exitosamente.
+     */
+    suspend fun contarEnviados(): Int = dao.contarEnviados()
+
+    /**
+     * Total de escaneos (pendientes + enviados + error).
+     */
+    suspend fun contarTotal(): Int = dao.contarTotal()
+
+    /**
      * Verifica si hay conexión a internet.
      */
     fun hayConexion(): Boolean {
