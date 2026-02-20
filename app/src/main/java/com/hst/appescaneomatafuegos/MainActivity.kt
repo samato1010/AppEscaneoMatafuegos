@@ -229,11 +229,14 @@ class MainActivity : AppCompatActivity() {
     private fun normalizarUrl(rawValue: String): String {
         val cleaned = rawValue.trim()
 
-        // Buscar URL dentro del texto (por si hay prefijos basura)
-        val urlRegex = Regex("""(https?://[^\s]+agcontrol\.gob\.ar/matafuegos/[^\s]*)""", RegexOption.IGNORE_CASE)
+        // Buscar URL dentro del texto (acepta puerto opcional como :80 o :443)
+        val urlRegex = Regex("""(https?://[^\s]*agcontrol\.gob\.ar(?::\d+)?/matafuegos/[^\s]*)""", RegexOption.IGNORE_CASE)
         val match = urlRegex.find(cleaned)
         if (match != null) {
-            val url = match.value
+            var url = match.value
+            // Quitar puertos redundantes (:80 para http, :443 para https)
+            url = url.replace(Regex("""(\.ar):80/"""), "$1/")
+            url = url.replace(Regex("""(\.ar):443/"""), "$1/")
             // Forzar https
             return if (url.startsWith("http://")) {
                 url.replaceFirst("http://", "https://")
@@ -243,10 +246,13 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Si no matcheó regex pero contiene el dominio, intentar armar la URL
-        val domainRegex = Regex("""(dghpsh\.agcontrol\.gob\.ar/matafuegos/[^\s]*)""", RegexOption.IGNORE_CASE)
+        val domainRegex = Regex("""(dghpsh\.agcontrol\.gob\.ar(?::\d+)?/matafuegos/[^\s]*)""", RegexOption.IGNORE_CASE)
         val domainMatch = domainRegex.find(cleaned)
         if (domainMatch != null) {
-            return "https://${domainMatch.value}"
+            var url = domainMatch.value
+            url = url.replace(Regex("""(\.ar):80/"""), "$1/")
+            url = url.replace(Regex("""(\.ar):443/"""), "$1/")
+            return "https://$url"
         }
 
         // Fallback: limpiar y poner https si no tiene protocolo
