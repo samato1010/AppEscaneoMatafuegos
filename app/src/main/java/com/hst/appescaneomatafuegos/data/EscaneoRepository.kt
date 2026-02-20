@@ -64,22 +64,50 @@ class EscaneoRepository(
      */
     private suspend fun intentarEnvio(id: Int, url: String): EnvioResult {
         return try {
+            Log.d(TAG, ">>> Enviando a backend: id=$id url=$url")
             val response = api.enviarEscaneo(EscaneoRequest(url = url))
+            val code = response.code()
+            val body = response.body()
+            val errorBody = response.errorBody()?.string()
 
-            if (response.isSuccessful) {
+            Log.d(TAG, "<<< Respuesta: HTTP $code, success=${body?.success}, msg=${body?.message}, errorBody=$errorBody")
+
+            if (response.isSuccessful && body?.success == true) {
                 dao.marcarEnviado(id)
                 Log.d(TAG, "Escaneo enviado OK: id=$id")
                 EnvioResult.Enviado
+            } else if (response.isSuccessful) {
+                // HTTP 200 pero success=false en el JSON
+                val msg = body?.message ?: errorBody ?: "Rechazado por el servidor"
+                Log.w(TAG, "Servidor rechazó: $msg para id=$id")
+                dao.incrementarIntentos(id)
+                EnvioResult.Error(msg)
             } else {
                 dao.incrementarIntentos(id)
-                val msg = "Error servidor: ${response.code()}"
+                val msg = "Error HTTP $code"
                 Log.w(TAG, "$msg para id=$id")
                 EnvioResult.Error(msg)
             }
+        } catch (e: java.net.UnknownHostException) {
+            dao.incrementarIntentos(id)
+            Log.e(TAG, "DNS error para id=$id: ${e.message}")
+            EnvioResult.Error("No se encontró el servidor")
+        } catch (e: java.net.SocketTimeoutException) {
+            dao.incrementarIntentos(id)
+            Log.e(TAG, "Timeout para id=$id: ${e.message}")
+            EnvioResult.Error("Timeout de conexión")
+        } catch (e: javax.net.ssl.SSLException) {
+            dao.incrementarIntentos(id)
+            Log.e(TAG, "SSL error para id=$id: ${e.message}")
+            EnvioResult.Error("Error de seguridad SSL")
+        } catch (e: java.io.IOException) {
+            dao.incrementarIntentos(id)
+            Log.e(TAG, "IO error para id=$id: ${e.javaClass.simpleName} - ${e.message}")
+            EnvioResult.Error("Error de red: ${e.localizedMessage}")
         } catch (e: Exception) {
             dao.incrementarIntentos(id)
-            Log.e(TAG, "Error de red para id=$id: ${e.message}", e)
-            EnvioResult.Error("Error de conexión: ${e.localizedMessage}")
+            Log.e(TAG, "Error inesperado para id=$id: ${e.javaClass.simpleName} - ${e.message}", e)
+            EnvioResult.Error("Error: ${e.localizedMessage}")
         }
     }
 

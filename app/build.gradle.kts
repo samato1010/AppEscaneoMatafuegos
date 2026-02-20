@@ -55,9 +55,10 @@ dependencies {
     // ML Kit Barcode Scanning
     implementation("com.google.mlkit:barcode-scanning:17.3.0")
 
-    // Retrofit
+    // Retrofit + OkHttp logging
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("com.squareup.retrofit2:converter-gson:2.11.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
 
     // Room (offline database)
     implementation("androidx.room:room-runtime:2.6.1")

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Permitir conexiones HTTPS a hst.ar (Hostinger) -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">hst.ar</domain>
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
+    <!-- Base config: permitir cleartext solo para debug -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
