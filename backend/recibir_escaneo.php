@@ -29,6 +29,7 @@ if (!$input || empty($input['url'])) {
 }
 
 $url = trim($input['url']);
+$nro_orden = isset($input['nro_orden']) && $input['nro_orden'] !== null ? trim($input['nro_orden']) : null;
 
 // Normalizar URL PRIMERO: forzar HTTPS, quitar puerto :80 si existe
 $url = str_replace('http://', 'https://', $url);
@@ -48,11 +49,17 @@ try {
     $db = getDB();
 
     // Verificar duplicados
-    $check = $db->prepare("SELECT id, estado FROM extintores WHERE url = :url LIMIT 1");
+    $check = $db->prepare("SELECT id, estado, nro_orden FROM extintores WHERE url = :url LIMIT 1");
     $check->execute([':url' => $url]);
     $existente = $check->fetch();
 
     if ($existente) {
+        // Si se envia nro_orden y el extintor no tiene uno, actualizarlo
+        if ($nro_orden && empty($existente['nro_orden'])) {
+            $updateOrden = $db->prepare("UPDATE extintores SET nro_orden = :nro WHERE id = :id");
+            $updateOrden->execute([':nro' => $nro_orden, ':id' => $existente['id']]);
+        }
+
         // Registrar re-escaneo en historial
         $historial = $db->prepare(
             "INSERT INTO historial_escaneos (extintor_id, fecha_escaneo, origen)
@@ -77,10 +84,10 @@ try {
 
     // Insertar nuevo escaneo
     $stmt = $db->prepare(
-        "INSERT INTO extintores (url, fecha_escaneo, estado, intentos_sync)
-         VALUES (:url, NOW(), 'pendiente', 0)"
+        "INSERT INTO extintores (url, fecha_escaneo, estado, intentos_sync, nro_orden)
+         VALUES (:url, NOW(), 'pendiente', 0, :nro_orden)"
     );
-    $stmt->execute([':url' => $url]);
+    $stmt->execute([':url' => $url, ':nro_orden' => $nro_orden]);
     $nuevoId = (int)$db->lastInsertId();
 
     // Registrar primer escaneo en historial

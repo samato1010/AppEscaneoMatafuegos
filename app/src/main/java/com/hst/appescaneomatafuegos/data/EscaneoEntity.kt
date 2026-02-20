@@ -14,5 +14,6 @@ data class EscaneoEntity(
     val url: String,
     val fecha: Long = System.currentTimeMillis(),
     val estado: String = "pendiente",  // "pendiente", "enviado", "error"
-    val intentos: Int = 0
+    val intentos: Int = 0,
+    val nroOrden: String? = null
 )

@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="24dp">
+
+    <!-- Estado de Carga -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Estado de Carga *"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:textColor="#333333"
+        android:layout_marginBottom="6dp" />
+
+    <Spinner
+        android:id="@+id/spinnerEstadoCarga"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_marginBottom="16dp"
+        android:background="@android:drawable/btn_dropdown"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp" />
+
+    <!-- Chapa / Baliza -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Chapa / Baliza *"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:textColor="#333333"
+        android:layout_marginBottom="6dp" />
+
+    <Spinner
+        android:id="@+id/spinnerChapaBaliza"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_marginBottom="4dp"
+        android:background="@android:drawable/btn_dropdown"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp" />
+
+    <!-- Campo para "Otra" chapa (oculto por defecto) -->
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/layoutOtraChapa"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:visibility="gone"
+        android:hint="Especificar chapa/baliza">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/editOtraChapa"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="text"
+            android:maxLines="1" />
+
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <!-- Comentario -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Comentario (opcional)"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:textColor="#333333"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="6dp" />
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Observaciones del extintor">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/editComentario"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="textMultiLine"
+            android:minLines="2"
+            android:maxLines="4"
+            android:gravity="top" />
+
+    </com.google.android.material.textfield.TextInputLayout>
+
+</LinearLayout>

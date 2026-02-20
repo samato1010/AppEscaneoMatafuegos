@@ -5,15 +5,16 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.util.Log
 import com.hst.appescaneomatafuegos.ApiService
+import com.hst.appescaneomatafuegos.ControlPeriodicoRequest
 import com.hst.appescaneomatafuegos.EscaneoRequest
 
 /**
  * Repository que combina Room (offline) + Retrofit (online).
  *
  * Flujo:
- * 1. Al escanear QR → guardar en Room como "pendiente"
- * 2. Si hay conexión → enviar al backend → marcar "enviado"
- * 3. Si falla → queda "pendiente" para sync posterior
+ * 1. Al escanear QR -> guardar en Room como "pendiente"
+ * 2. Si hay conexion -> enviar al backend -> marcar "enviado"
+ * 3. Si falla -> queda "pendiente" para sync posterior
  */
 class EscaneoRepository(
     private val dao: EscaneoDao,
@@ -26,7 +27,7 @@ class EscaneoRepository(
     }
 
     /**
-     * Resultado de un intento de envío.
+     * Resultado de un intento de envio.
      */
     sealed class EnvioResult {
         data object Enviado : EnvioResult()
@@ -38,53 +39,53 @@ class EscaneoRepository(
 
     /**
      * Procesa un nuevo escaneo: guarda en Room e intenta enviar.
-     * Si ya fue enviado antes, re-envía para registrar en historial del servidor.
+     * Si ya fue enviado antes, re-envia para registrar en historial del servidor.
      */
-    suspend fun procesarEscaneo(url: String): EnvioResult {
+    suspend fun procesarEscaneo(url: String, nroOrden: String? = null): EnvioResult {
         val yaEnviado = dao.yaEnviado(url) > 0
 
         if (yaEnviado) {
-            // Ya existe en Room como enviado → re-escaneo
+            // Ya existe en Room como enviado -> re-escaneo
             Log.d(TAG, "Re-escaneo de URL ya enviada: $url")
 
             if (!hayConexion()) {
-                Log.d(TAG, "Sin conexión - no se puede registrar re-escaneo")
-                return EnvioResult.Error("Sin conexión para registrar re-escaneo")
+                Log.d(TAG, "Sin conexion - no se puede registrar re-escaneo")
+                return EnvioResult.Error("Sin conexion para registrar re-escaneo")
             }
 
-            // Enviar al servidor (registrará en historial_escaneos)
-            return intentarReEscaneo(url)
+            // Enviar al servidor (registrara en historial_escaneos)
+            return intentarReEscaneo(url, nroOrden)
         }
 
-        // Verificar si existe pero pendiente (aún no enviado)
+        // Verificar si existe pero pendiente (aun no enviado)
         val existePendiente = dao.existeUrl(url) > 0
         if (existePendiente) {
-            Log.d(TAG, "URL pendiente de envío: $url")
+            Log.d(TAG, "URL pendiente de envio: $url")
             return EnvioResult.Duplicado
         }
 
         // Nuevo escaneo: guardar en Room
-        val entity = EscaneoEntity(url = url)
+        val entity = EscaneoEntity(url = url, nroOrden = nroOrden)
         val id = dao.insertar(entity).toInt()
         Log.d(TAG, "Escaneo guardado en Room con id=$id")
 
-        // Intentar enviar si hay conexión
+        // Intentar enviar si hay conexion
         if (!hayConexion()) {
-            Log.d(TAG, "Sin conexión - guardado para sync posterior")
+            Log.d(TAG, "Sin conexion - guardado para sync posterior")
             return EnvioResult.GuardadoOffline
         }
 
-        return intentarEnvio(id, url)
+        return intentarEnvio(id, url, nroOrden)
     }
 
     /**
-     * Envía re-escaneo al servidor para registrar en historial.
+     * Envia re-escaneo al servidor para registrar en historial.
      * No guarda en Room (ya existe).
      */
-    private suspend fun intentarReEscaneo(url: String): EnvioResult {
+    private suspend fun intentarReEscaneo(url: String, nroOrden: String? = null): EnvioResult {
         return try {
-            Log.d(TAG, ">>> Re-escaneo enviando a backend: url=$url")
-            val response = api.enviarEscaneo(EscaneoRequest(url = url))
+            Log.d(TAG, ">>> Re-escaneo enviando a backend: url=$url nroOrden=$nroOrden")
+            val response = api.enviarEscaneo(EscaneoRequest(url = url, nro_orden = nroOrden))
             val body = response.body()
 
             if (response.isSuccessful && body?.success == true) {
@@ -105,10 +106,10 @@ class EscaneoRepository(
     /**
      * Intenta enviar un escaneo al backend.
      */
-    private suspend fun intentarEnvio(id: Int, url: String): EnvioResult {
+    private suspend fun intentarEnvio(id: Int, url: String, nroOrden: String? = null): EnvioResult {
         return try {
-            Log.d(TAG, ">>> Enviando a backend: id=$id url=$url")
-            val response = api.enviarEscaneo(EscaneoRequest(url = url))
+            Log.d(TAG, ">>> Enviando a backend: id=$id url=$url nroOrden=$nroOrden")
+            val response = api.enviarEscaneo(EscaneoRequest(url = url, nro_orden = nroOrden))
             val code = response.code()
             val body = response.body()
             val errorBody = response.errorBody()?.string()
@@ -122,7 +123,7 @@ class EscaneoRepository(
             } else if (response.isSuccessful) {
                 // HTTP 200 pero success=false en el JSON
                 val msg = body?.message ?: errorBody ?: "Rechazado por el servidor"
-                Log.w(TAG, "Servidor rechazó: $msg para id=$id")
+                Log.w(TAG, "Servidor rechazo: $msg para id=$id")
                 dao.incrementarIntentos(id)
                 EnvioResult.Error(msg)
             } else {
@@ -134,11 +135,11 @@ class EscaneoRepository(
         } catch (e: java.net.UnknownHostException) {
             dao.incrementarIntentos(id)
             Log.e(TAG, "DNS error para id=$id: ${e.message}")
-            EnvioResult.Error("No se encontró el servidor")
+            EnvioResult.Error("No se encontro el servidor")
         } catch (e: java.net.SocketTimeoutException) {
             dao.incrementarIntentos(id)
             Log.e(TAG, "Timeout para id=$id: ${e.message}")
-            EnvioResult.Error("Timeout de conexión")
+            EnvioResult.Error("Timeout de conexion")
         } catch (e: javax.net.ssl.SSLException) {
             dao.incrementarIntentos(id)
             Log.e(TAG, "SSL error para id=$id: ${e.message}")
@@ -155,7 +156,45 @@ class EscaneoRepository(
     }
 
     /**
-     * Resultado de sincronización masiva.
+     * Envia un control periodico al backend.
+     */
+    suspend fun enviarControlPeriodico(
+        url: String,
+        estadoCarga: String,
+        chapaBaliza: String,
+        comentario: String?
+    ): EnvioResult {
+        if (!hayConexion()) {
+            return EnvioResult.Error("Sin conexion para enviar control periodico")
+        }
+
+        return try {
+            Log.d(TAG, ">>> Enviando control periodico: url=$url estado=$estadoCarga chapa=$chapaBaliza")
+            val request = ControlPeriodicoRequest(
+                url = url,
+                estado_carga = estadoCarga,
+                chapa_baliza = chapaBaliza,
+                comentario = comentario
+            )
+            val response = api.enviarControlPeriodico(request)
+            val body = response.body()
+
+            if (response.isSuccessful && body?.success == true) {
+                Log.d(TAG, "Control periodico registrado OK: ${body.message}")
+                EnvioResult.ReEscaneado(body.message)
+            } else {
+                val msg = body?.message ?: "Error al registrar control periodico"
+                Log.w(TAG, "Control periodico rechazado: $msg")
+                EnvioResult.Error(msg)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error en control periodico: ${e.message}")
+            EnvioResult.Error("Error de red: ${e.localizedMessage}")
+        }
+    }
+
+    /**
+     * Resultado de sincronizacion masiva.
      */
     data class SyncResult(val enviados: Int, val fallidos: Int, val ultimoError: String = "")
 
@@ -173,9 +212,9 @@ class EscaneoRepository(
         Log.d(TAG, "=== SYNC: ${pendientes.size} pendientes ===")
 
         for (escaneo in pendientes) {
-            Log.d(TAG, "Sync intentando id=${escaneo.id} url=${escaneo.url}")
+            Log.d(TAG, "Sync intentando id=${escaneo.id} url=${escaneo.url} nroOrden=${escaneo.nroOrden}")
             try {
-                val response = api.enviarEscaneo(EscaneoRequest(url = escaneo.url))
+                val response = api.enviarEscaneo(EscaneoRequest(url = escaneo.url, nro_orden = escaneo.nroOrden))
                 val code = response.code()
                 val body = response.body()
                 val errorBody = response.errorBody()?.string()
@@ -190,7 +229,7 @@ class EscaneoRepository(
                     dao.incrementarIntentos(escaneo.id)
                     fallidos++
                     ultimoError = body?.message ?: errorBody ?: "HTTP $code"
-                    Log.w(TAG, "Sync falló id=${escaneo.id}: $ultimoError")
+                    Log.w(TAG, "Sync fallo id=${escaneo.id}: $ultimoError")
                 }
             } catch (e: Exception) {
                 dao.incrementarIntentos(escaneo.id)
@@ -205,7 +244,7 @@ class EscaneoRepository(
     }
 
     /**
-     * Cantidad de escaneos pendientes de envío.
+     * Cantidad de escaneos pendientes de envio.
      */
     suspend fun contarPendientes(): Int = dao.contarPendientes()
 
@@ -229,7 +268,7 @@ class EscaneoRepository(
     }
 
     /**
-     * Verifica si hay conexión a internet.
+     * Verifica si hay conexion a internet.
      */
     fun hayConexion(): Boolean {
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager

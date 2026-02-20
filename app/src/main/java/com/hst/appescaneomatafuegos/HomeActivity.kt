@@ -4,6 +4,7 @@ import android.content.Intent
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.View
+import android.widget.EditText
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -20,15 +21,22 @@ import kotlinx.coroutines.withContext
  * HomeActivity — Pantalla de inicio.
  *
  * Muestra:
- * - Estado de sincronización (Sincronizado / Guardado pendiente)
+ * - Estado de sincronizacion (Sincronizado / Guardado pendiente)
  * - Cantidad de extintores enviados, pendientes y total
- * - Botón para sincronizar pendientes
- * - Botón principal para abrir el escáner
+ * - Boton para sincronizar pendientes
+ * - Dos botones principales: Escanear para Orden / Control Periodico
  */
 class HomeActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityHomeBinding
     private lateinit var repository: EscaneoRepository
+
+    companion object {
+        const val EXTRA_SCAN_MODE = "SCAN_MODE"
+        const val EXTRA_NRO_ORDEN = "NRO_ORDEN"
+        const val MODE_ORDEN = "orden"
+        const val MODE_CONTROL = "control_periodico"
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -40,17 +48,25 @@ class HomeActivity : AppCompatActivity() {
         val api = ApiService.create()
         repository = EscaneoRepository(db.escaneoDao(), api, this)
 
-        // Botón ESCANEAR EXTINTOR → abre cámara
-        binding.btnEscanear.setOnClickListener {
-            startActivity(Intent(this, MainActivity::class.java))
+        // Boton ESCANEAR PARA ORDEN -> pide nro de orden, luego abre camara
+        binding.btnEscanearOrden.setOnClickListener {
+            mostrarDialogoNroOrden()
         }
 
-        // Botón SINCRONIZAR
+        // Boton CONTROL PERIODICO -> abre camara directamente en modo control
+        binding.btnEscanearControl.setOnClickListener {
+            val intent = Intent(this, MainActivity::class.java).apply {
+                putExtra(EXTRA_SCAN_MODE, MODE_CONTROL)
+            }
+            startActivity(intent)
+        }
+
+        // Boton SINCRONIZAR
         binding.btnSincronizar.setOnClickListener {
             sincronizarPendientes()
         }
 
-        // Botón LIMPIAR HISTORIAL
+        // Boton LIMPIAR HISTORIAL
         binding.btnLimpiar.setOnClickListener {
             confirmarLimpiarHistorial()
         }
@@ -59,6 +75,41 @@ class HomeActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         actualizarEstado()
+    }
+
+    /**
+     * Muestra dialogo para ingresar el numero de orden antes de escanear.
+     */
+    private fun mostrarDialogoNroOrden() {
+        val editText = EditText(this).apply {
+            hint = "Ej: ORD-001, 12345"
+            setPadding(48, 32, 48, 32)
+            textSize = 18f
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                    android.text.InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("Numero de Orden")
+            .setMessage("Ingrese el numero de orden para esta sesion de escaneo:")
+            .setView(editText)
+            .setPositiveButton("Iniciar Escaneo") { _, _ ->
+                val nroOrden = editText.text.toString().trim()
+                if (nroOrden.isEmpty()) {
+                    Snackbar.make(binding.root, "Debe ingresar un numero de orden", Snackbar.LENGTH_SHORT)
+                        .setBackgroundTint(ContextCompat.getColor(this, R.color.error))
+                        .show()
+                    return@setPositiveButton
+                }
+
+                val intent = Intent(this, MainActivity::class.java).apply {
+                    putExtra(EXTRA_SCAN_MODE, MODE_ORDEN)
+                    putExtra(EXTRA_NRO_ORDEN, nroOrden)
+                }
+                startActivity(intent)
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
     }
 
     /**
@@ -75,9 +126,9 @@ class HomeActivity : AppCompatActivity() {
             binding.textGuardados.text = "$pendientes"
             binding.textTotal.text = "$total"
 
-            // Estado de sincronización
+            // Estado de sincronizacion
             if (pendientes > 0) {
-                // Hay pendientes → estado "Guardado"
+                // Hay pendientes -> estado "Guardado"
                 binding.textEstado.text = "Guardado ($pendientes pendientes)"
                 binding.textEstado.setTextColor(ContextCompat.getColor(this@HomeActivity, R.color.warning))
 
@@ -87,7 +138,7 @@ class HomeActivity : AppCompatActivity() {
                     indicator.setColor(ContextCompat.getColor(this@HomeActivity, R.color.warning))
                 }
 
-                // Mostrar botón sincronizar
+                // Mostrar boton sincronizar
                 binding.btnSincronizar.visibility = View.VISIBLE
                 binding.btnSincronizar.text = "SINCRONIZAR $pendientes PENDIENTES"
             } else {
@@ -101,19 +152,19 @@ class HomeActivity : AppCompatActivity() {
                     indicator.setColor(ContextCompat.getColor(this@HomeActivity, R.color.success))
                 }
 
-                // Ocultar botón sincronizar
+                // Ocultar boton sincronizar
                 binding.btnSincronizar.visibility = View.GONE
             }
         }
     }
 
     /**
-     * Muestra diálogo de confirmación y limpia el historial local.
+     * Muestra dialogo de confirmacion y limpia el historial local.
      */
     private fun confirmarLimpiarHistorial() {
         AlertDialog.Builder(this)
             .setTitle("Limpiar historial")
-            .setMessage("Se borrarán todos los escaneos del dispositivo. Esto permite volver a escanear QRs que ya fueron enviados.\n\nLos datos del servidor no se afectan.")
+            .setMessage("Se borraran todos los escaneos del dispositivo. Esto permite volver a escanear QRs que ya fueron enviados.\n\nLos datos del servidor no se afectan.")
             .setPositiveButton("Limpiar") { _, _ ->
                 lifecycleScope.launch {
                     withContext(Dispatchers.IO) {
@@ -132,7 +183,7 @@ class HomeActivity : AppCompatActivity() {
      */
     private fun sincronizarPendientes() {
         if (!repository.hayConexion()) {
-            Snackbar.make(binding.root, "Sin conexión a internet", Snackbar.LENGTH_LONG)
+            Snackbar.make(binding.root, "Sin conexion a internet", Snackbar.LENGTH_LONG)
                 .setBackgroundTint(ContextCompat.getColor(this, R.color.error))
                 .show()
             return
@@ -151,9 +202,9 @@ class HomeActivity : AppCompatActivity() {
 
             val msg = when {
                 result.fallidos == 0 && result.enviados > 0 ->
-                    "✅ ${result.enviados} extintores sincronizados"
+                    "${result.enviados} extintores sincronizados"
                 result.enviados == 0 && result.fallidos > 0 ->
-                    "❌ Error: ${result.ultimoError}"
+                    "Error: ${result.ultimoError}"
                 result.enviados > 0 && result.fallidos > 0 ->
                     "Parcial: ${result.enviados} OK, ${result.fallidos} fallidos\n${result.ultimoError}"
                 else -> "No hay pendientes"

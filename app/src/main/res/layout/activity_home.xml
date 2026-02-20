@@ -240,21 +240,40 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- Botón principal: ESCANEAR EXTINTOR -->
+    <!-- Botón: ESCANEAR PARA ORDEN -->
     <com.google.android.material.button.MaterialButton
-        android:id="@+id/btnEscanear"
+        android:id="@+id/btnEscanearOrden"
         android:layout_width="0dp"
-        android:layout_height="64dp"
+        android:layout_height="60dp"
         android:layout_marginHorizontal="24dp"
-        android:layout_marginBottom="40dp"
-        android:text="ESCANEAR EXTINTOR"
-        android:textSize="18sp"
+        android:layout_marginBottom="12dp"
+        android:text="ESCANEAR PARA ORDEN"
+        android:textSize="16sp"
         android:textStyle="bold"
         app:backgroundTint="@color/primary"
         app:cornerRadius="16dp"
-        app:icon="@android:drawable/ic_menu_camera"
+        app:icon="@android:drawable/ic_menu_agenda"
         app:iconGravity="textStart"
-        app:iconSize="28dp"
+        app:iconSize="24dp"
+        app:layout_constraintBottom_toTopOf="@id/btnEscanearControl"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- Botón: CONTROL PERIODICO -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnEscanearControl"
+        android:layout_width="0dp"
+        android:layout_height="60dp"
+        android:layout_marginHorizontal="24dp"
+        android:layout_marginBottom="40dp"
+        android:text="CONTROL PERIODICO"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        app:backgroundTint="@color/purple"
+        app:cornerRadius="16dp"
+        app:icon="@android:drawable/ic_menu_edit"
+        app:iconGravity="textStart"
+        app:iconSize="24dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />

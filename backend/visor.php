@@ -1,7 +1,7 @@
 <?php
 /**
  * Visor de Matafuegos Escaneados - Belga / HST SRL
- * v2.0 - Con buscador, detalle expandible, exportar CSV, alertas de vencimiento
+ * v3.0 - Filtro por orden, controles periodicos, impresion
  */
 
 require_once __DIR__ . '/config.php';
@@ -19,13 +19,13 @@ if (isset($_GET['exportar']) && $_GET['exportar'] === 'csv') {
     $out = fopen('php://output', 'w');
     // BOM para Excel
     fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF));
-    fputcsv($out, ['ID', 'Fecha Escaneo', 'Estado', 'Domicilio', 'Fabricante', 'Recargadora',
+    fputcsv($out, ['ID', 'Fecha Escaneo', 'Estado', 'Nro Orden', 'Domicilio', 'Fabricante', 'Recargadora',
         'Agente Extintor', 'Capacidad', 'Fecha Mantenimiento', 'Venc. Mantenimiento',
         'Fecha Fabricacion', 'Venc. Vida Util', 'Venc. PH', 'Nro Tarjeta', 'Nro Extintor', 'Uso', 'URL']);
 
     foreach ($todos as $r) {
         fputcsv($out, [
-            $r['id'], $r['fecha_escaneo'], $r['estado'], $r['domicilio'], $r['fabricante'],
+            $r['id'], $r['fecha_escaneo'], $r['estado'], $r['nro_orden'] ?? '', $r['domicilio'], $r['fabricante'],
             $r['recargadora'], $r['agente_extintor'], $r['capacidad'], $r['fecha_mantenimiento'],
             $r['fecha_venc_mantenimiento'], $r['fecha_fabricacion'] ?? '', $r['venc_vida_util'] ?? '',
             $r['venc_ph'] ?? '', $r['nro_tarjeta'] ?? '', $r['nro_extintor'] ?? '', $r['uso'] ?? '', $r['url']
@@ -61,10 +61,22 @@ if (isset($_GET['api']) && $_GET['api'] === 'historial' && isset($_GET['id'])) {
     $stmtHist->execute([':eid' => $extintorId]);
     $historial = $stmtHist->fetchAll(PDO::FETCH_ASSOC);
 
+    // Controles periodicos
+    $stmtCtrl = $db->prepare(
+        "SELECT id, fecha_control, estado_carga, chapa_baliza, comentario, origen
+         FROM controles_periodicos
+         WHERE extintor_id = :eid
+         ORDER BY fecha_control DESC"
+    );
+    $stmtCtrl->execute([':eid' => $extintorId]);
+    $controles = $stmtCtrl->fetchAll(PDO::FETCH_ASSOC);
+
     echo json_encode([
         'extintor' => $extintor,
         'historial' => $historial,
-        'total_escaneos' => count($historial)
+        'controles' => $controles,
+        'total_escaneos' => count($historial),
+        'total_controles' => count($controles)
     ]);
     exit;
 }
@@ -76,6 +88,7 @@ if (isset($_GET['api']) && $_GET['api'] === 'datos') {
 
     $busqueda = isset($_GET['q']) ? trim($_GET['q']) : '';
     $filtroEstado = isset($_GET['estado']) ? $_GET['estado'] : '';
+    $filtroOrden = isset($_GET['orden']) ? trim($_GET['orden']) : '';
     $filtrosValidos = ['pendiente', 'cargado', 'error'];
     $porPagina = 20;
     $pagina = isset($_GET['p']) ? max(1, (int)$_GET['p']) : 1;
@@ -89,14 +102,20 @@ if (isset($_GET['api']) && $_GET['api'] === 'datos') {
         $params[':estado'] = $filtroEstado;
     }
 
+    if ($filtroOrden !== '') {
+        $where[] = "e.nro_orden = :nro_orden";
+        $params[':nro_orden'] = $filtroOrden;
+    }
+
     if ($busqueda !== '') {
-        $where[] = "(e.domicilio LIKE :q1 OR e.fabricante LIKE :q2 OR e.recargadora LIKE :q3 OR e.nro_extintor LIKE :q4 OR e.nro_tarjeta LIKE :q5 OR e.agente_extintor LIKE :q6)";
+        $where[] = "(e.domicilio LIKE :q1 OR e.fabricante LIKE :q2 OR e.recargadora LIKE :q3 OR e.nro_extintor LIKE :q4 OR e.nro_tarjeta LIKE :q5 OR e.agente_extintor LIKE :q6 OR e.nro_orden LIKE :q7)";
         $params[':q1'] = "%$busqueda%";
         $params[':q2'] = "%$busqueda%";
         $params[':q3'] = "%$busqueda%";
         $params[':q4'] = "%$busqueda%";
         $params[':q5'] = "%$busqueda%";
         $params[':q6'] = "%$busqueda%";
+        $params[':q7'] = "%$busqueda%";
     }
 
     $whereSQL = count($where) > 0 ? 'WHERE ' . implode(' AND ', $where) : '';
@@ -675,6 +694,139 @@ $contTotal      = $db->query("SELECT COUNT(*) FROM extintores")->fetchColumn();
             color: var(--text-muted);
         }
 
+        /* === FILTRO ORDEN === */
+        .orden-filter-box {
+            position: relative;
+            min-width: 160px;
+            max-width: 220px;
+        }
+        .orden-filter-box input {
+            width: 100%;
+            padding: 10px 14px 10px 34px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 14px;
+            background: white;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .orden-filter-box input:focus {
+            outline: none;
+            border-color: var(--purple);
+            box-shadow: 0 0 0 3px rgba(139,92,246,0.15);
+        }
+        .orden-filter-box .orden-icon {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #9ca3af;
+            font-size: 14px;
+            pointer-events: none;
+        }
+        .orden-active-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: #f3e8ff;
+            color: #7c3aed;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+        .orden-active-badge .clear-orden {
+            cursor: pointer;
+            font-size: 14px;
+            margin-left: 4px;
+            opacity: 0.7;
+        }
+        .orden-active-badge .clear-orden:hover { opacity: 1; }
+
+        .btn-print { background: #6b7280; color: white; }
+        .btn-print:hover { background: #4b5563; }
+
+        /* === CONTROLES PERIODICOS EN MODAL === */
+        .controles-section {
+            margin-top: 20px;
+            border-top: 2px solid var(--border);
+            padding-top: 16px;
+        }
+        .controles-section h4 {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .control-card {
+            background: #f8fafc;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px 14px;
+            margin-bottom: 8px;
+        }
+        .control-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+        .control-fecha { font-size: 13px; font-weight: 600; color: var(--text); }
+        .control-estado {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        .control-estado.cargado { background: var(--green-bg); color: var(--green-text); }
+        .control-estado.descargado { background: var(--red-bg); color: var(--red-text); }
+        .control-estado.sobrecargado { background: var(--yellow-bg); color: var(--yellow-text); }
+        .control-detalle { font-size: 12px; color: var(--text-muted); }
+        .control-detalle strong { color: var(--text); }
+        .control-comentario {
+            font-size: 12px;
+            color: var(--text);
+            background: white;
+            padding: 6px 10px;
+            border-radius: 6px;
+            margin-top: 6px;
+            border-left: 3px solid var(--blue);
+            font-style: italic;
+        }
+
+        /* === PRINT STYLES === */
+        .print-header {
+            display: none;
+            text-align: center;
+            margin-bottom: 16px;
+        }
+        .print-header h2 { font-size: 18px; margin-bottom: 4px; }
+        .print-header p { font-size: 13px; color: #666; }
+
+        @media print {
+            body { background: white; padding: 0; font-size: 11px; }
+            .header, .toolbar, .toast-container, .paginacion,
+            .cards-container, .modal-overlay, .refresh-indicator,
+            #sinDatosDesktop, #paginacionMobile { display: none !important; }
+            .print-header { display: block !important; }
+            .tabla-container {
+                display: block !important;
+                box-shadow: none;
+                border: 1px solid #ccc;
+            }
+            table { font-size: 10px; }
+            th { background: #eee !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            td { padding: 6px 8px; }
+            .detalle-row { display: none !important; }
+            .badge { border: 1px solid #999; padding: 1px 6px; font-size: 9px; }
+            .btn-historial { display: none; }
+            a { color: #333; text-decoration: none; }
+        }
+
         /* === RESPONSIVE === */
         @media (max-width: 900px) {
             body { padding: 10px; }
@@ -685,6 +837,7 @@ $contTotal      = $db->query("SELECT COUNT(*) FROM extintores")->fetchColumn();
             .toolbar { flex-direction: column; align-items: stretch; }
             .toolbar-left { flex-direction: column; }
             .search-box { max-width: 100%; }
+            .orden-filter-box { max-width: 100%; min-width: 100%; }
             .toolbar-right { justify-content: stretch; }
             .toolbar-right .btn { flex: 1; justify-content: center; }
 
@@ -729,12 +882,24 @@ $contTotal      = $db->query("SELECT COUNT(*) FROM extintores")->fetchColumn();
                     <input type="text" id="inputBusqueda" placeholder="Buscar domicilio, fabricante, nro extintor..."
                            autocomplete="off" />
                 </div>
+                <div class="orden-filter-box">
+                    <span class="orden-icon">&#128203;</span>
+                    <input type="text" id="inputOrden" placeholder="Filtrar por orden..."
+                           autocomplete="off" />
+                </div>
+                <div id="ordenActiveBadge" class="orden-active-badge" style="display:none">
+                    <span id="ordenActiveText"></span>
+                    <span class="clear-orden" onclick="limpiarFiltroOrden()" title="Quitar filtro">&times;</span>
+                </div>
                 <div class="refresh-indicator">
                     <span class="refresh-dot"></span>
                     Auto-refresh <span id="refreshCountdown">30</span>s
                 </div>
             </div>
             <div class="toolbar-right">
+                <button class="btn btn-print" onclick="imprimirTabla()">
+                    &#128424; Imprimir
+                </button>
                 <button class="btn btn-csv" onclick="exportarCSV()">
                     &#128190; Exportar CSV
                 </button>
@@ -745,6 +910,12 @@ $contTotal      = $db->query("SELECT COUNT(*) FROM extintores")->fetchColumn();
             </div>
         </div>
 
+        <!-- Print Header (only visible when printing) -->
+        <div class="print-header" id="printHeader">
+            <h2>Listado de Matafuegos - HST SRL</h2>
+            <p id="printSubtitle"></p>
+        </div>
+
         <!-- Tabla Desktop -->
         <div class="tabla-container" id="tablaContainer">
             <table>
@@ -753,6 +924,7 @@ $contTotal      = $db->query("SELECT COUNT(*) FROM extintores")->fetchColumn();
                         <th style="width:50px;text-align:center" title="Historial de escaneos">Hist.</th>
                         <th>Fecha</th>
                         <th>Estado</th>
+                        <th>Orden</th>
                         <th>Domicilio</th>
                         <th>Fabricante</th>
                         <th>Recargadora</th>
@@ -796,6 +968,7 @@ $contTotal      = $db->query("SELECT COUNT(*) FROM extintores")->fetchColumn();
     let state = {
         filtroEstado: '',
         busqueda: '',
+        filtroOrden: '',
         pagina: 1,
         refreshTimer: null,
         refreshCountdown: 30,
@@ -817,6 +990,29 @@ $contTotal      = $db->query("SELECT COUNT(*) FROM extintores")->fetchColumn();
                 cargarDatos();
             }, 400);
         });
+
+        // Filtro orden con debounce
+        let debounceOrden;
+        document.getElementById('inputOrden').addEventListener('input', (e) => {
+            clearTimeout(debounceOrden);
+            debounceOrden = setTimeout(() => {
+                state.filtroOrden = e.target.value.trim();
+                state.pagina = 1;
+                actualizarBadgeOrden();
+                cargarDatos();
+            }, 400);
+        });
+
+        // Enter en filtro orden = aplicar inmediatamente
+        document.getElementById('inputOrden').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                clearTimeout(debounceOrden);
+                state.filtroOrden = e.target.value.trim();
+                state.pagina = 1;
+                actualizarBadgeOrden();
+                cargarDatos();
+            }
+        });
     });
 
     // === CARGAR DATOS (AJAX) ===
@@ -825,6 +1021,7 @@ $contTotal      = $db->query("SELECT COUNT(*) FROM extintores")->fetchColumn();
         params.set('api', 'datos');
         if (state.filtroEstado) params.set('estado', state.filtroEstado);
         if (state.busqueda) params.set('q', state.busqueda);
+        if (state.filtroOrden) params.set('orden', state.filtroOrden);
         params.set('p', state.pagina);
 
         try {
@@ -877,6 +1074,7 @@ $contTotal      = $db->query("SELECT COUNT(*) FROM extintores")->fetchColumn();
                 <td style="text-align:center">${lupaHtml}</td>
                 <td style="white-space:nowrap">${formatFecha(r.fecha_escaneo)}</td>
                 <td><span class="badge ${esc(r.estado)}">${esc(r.estado)}</span></td>
+                <td>${esc(r.nro_orden || '-')}</td>
                 <td>${esc(r.domicilio || '-')}</td>
                 <td>${esc(r.fabricante || '-')}</td>
                 <td>${esc(r.recargadora || '-')}</td>
@@ -886,9 +1084,10 @@ $contTotal      = $db->query("SELECT COUNT(*) FROM extintores")->fetchColumn();
                 <td>${vencInfo.diasHtml}</td>
             </tr>`;
             html += `<tr class="detalle-row" id="detalle-${idx}" style="display:none">
-                <td colspan="10">
+                <td colspan="11">
                     <div class="detalle-content">
                         <div class="detalle-item"><span class="detalle-label">URL AGC</span><span class="detalle-valor"><a href="${esc(r.url)}" target="_blank" style="color:var(--blue)">Ver en AGC &#8599;</a></span></div>
+                        <div class="detalle-item"><span class="detalle-label">Nro. Orden</span><span class="detalle-valor">${esc(r.nro_orden || '-')}</span></div>
                         <div class="detalle-item"><span class="detalle-label">Domicilio</span><span class="detalle-valor">${esc(r.domicilio || '-')}</span></div>
                         <div class="detalle-item"><span class="detalle-label">Fabricante</span><span class="detalle-valor">${esc(r.fabricante || '-')}</span></div>
                         <div class="detalle-item"><span class="detalle-label">Recargadora</span><span class="detalle-valor">${esc(r.recargadora || '-')}</span></div>
@@ -936,6 +1135,7 @@ $contTotal      = $db->query("SELECT COUNT(*) FROM extintores")->fetchColumn();
                 </div>
                 <div class="card-body">
                     <div class="card-grid">
+                        <div><div class="card-field-label">Nro. Orden</div><div class="card-field-value">${esc(r.nro_orden || '-')}</div></div>
                         <div><div class="card-field-label">Fabricante</div><div class="card-field-value">${esc(r.fabricante || '-')}</div></div>
                         <div><div class="card-field-label">Recargadora</div><div class="card-field-value">${esc(r.recargadora || '-')}</div></div>
                         <div><div class="card-field-label">Agente</div><div class="card-field-value">${esc(r.agente_extintor || '-')}</div></div>
@@ -1207,11 +1407,62 @@ $contTotal      = $db->query("SELECT COUNT(*) FROM extintores")->fetchColumn();
                 html += '</div>';
             }
 
+            // Seccion Controles Periodicos
+            if (data.controles && data.controles.length > 0) {
+                html += `<div class="controles-section">
+                    <h4>&#128203; Controles Periodicos (${data.total_controles})</h4>`;
+                data.controles.forEach((c) => {
+                    const estadoClass = c.estado_carga.toLowerCase();
+                    html += `<div class="control-card">
+                        <div class="control-card-header">
+                            <span class="control-fecha">${formatFechaFull(c.fecha_control)}</span>
+                            <span class="control-estado ${estadoClass}">${esc(c.estado_carga)}</span>
+                        </div>
+                        <div class="control-detalle">
+                            <strong>Chapa/Baliza:</strong> ${esc(c.chapa_baliza)}
+                        </div>
+                        ${c.comentario ? '<div class="control-comentario">' + esc(c.comentario) + '</div>' : ''}
+                    </div>`;
+                });
+                html += '</div>';
+            }
+
             body.innerHTML = html;
         } catch (e) {
             body.innerHTML = '<div class="modal-loading" style="color:var(--red)">Error al cargar historial</div>';
             console.error('Error cargando historial:', e);
         }
+    }
+
+    // === FILTRO ORDEN HELPERS ===
+    function actualizarBadgeOrden() {
+        const badge = document.getElementById('ordenActiveBadge');
+        const text = document.getElementById('ordenActiveText');
+        if (state.filtroOrden) {
+            badge.style.display = 'inline-flex';
+            text.textContent = 'Orden: ' + state.filtroOrden;
+        } else {
+            badge.style.display = 'none';
+        }
+    }
+
+    function limpiarFiltroOrden() {
+        state.filtroOrden = '';
+        document.getElementById('inputOrden').value = '';
+        actualizarBadgeOrden();
+        state.pagina = 1;
+        cargarDatos();
+    }
+
+    // === IMPRIMIR ===
+    function imprimirTabla() {
+        const subtitle = document.getElementById('printSubtitle');
+        let info = 'Generado: ' + new Date().toLocaleDateString('es-AR') + ' ' + new Date().toLocaleTimeString('es-AR');
+        if (state.filtroOrden) info += ' | Orden: ' + state.filtroOrden;
+        if (state.busqueda) info += ' | Busqueda: ' + state.busqueda;
+        if (state.filtroEstado) info += ' | Estado: ' + state.filtroEstado;
+        subtitle.textContent = info;
+        window.print();
     }
 
     function cerrarModal(event) {

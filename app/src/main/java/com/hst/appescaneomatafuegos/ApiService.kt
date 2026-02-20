@@ -11,10 +11,11 @@ import retrofit2.http.POST
 import java.util.concurrent.TimeUnit
 
 /**
- * Modelo de datos para enviar al backend.
+ * Modelo de datos para enviar escaneo al backend.
  */
 data class EscaneoRequest(
-    val url: String
+    val url: String,
+    val nro_orden: String? = null
 )
 
 /**
@@ -26,12 +27,34 @@ data class EscaneoResponse(
 )
 
 /**
+ * Request para control periódico.
+ */
+data class ControlPeriodicoRequest(
+    val url: String,
+    val estado_carga: String,
+    val chapa_baliza: String,
+    val comentario: String? = null
+)
+
+/**
+ * Respuesta del backend para control periódico.
+ */
+data class ControlPeriodicoResponse(
+    val success: Boolean = false,
+    val message: String = "",
+    val total_controles: Int = 0
+)
+
+/**
  * Interface Retrofit para comunicación con el backend Hostinger.
  */
 interface ApiService {
 
     @POST("recibir_escaneo.php")
     suspend fun enviarEscaneo(@Body request: EscaneoRequest): Response<EscaneoResponse>
+
+    @POST("recibir_control_periodico.php")
+    suspend fun enviarControlPeriodico(@Body request: ControlPeriodicoRequest): Response<ControlPeriodicoResponse>
 
     companion object {
         private const val TAG = "ApiService"

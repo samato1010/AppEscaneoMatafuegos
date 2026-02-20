@@ -8,4 +8,5 @@
     <color name="success">#FF4CAF50</color>
     <color name="error">#FFF44336</color>
     <color name="warning">#FFFF9800</color>
+    <color name="purple">#FF7B1FA2</color>
 </resources>
