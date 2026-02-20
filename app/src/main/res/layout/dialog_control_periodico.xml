@@ -1,92 +1,143 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout
+<ScrollView
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:padding="24dp">
+    android:layout_height="wrap_content">
 
-    <!-- Estado de Carga -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Estado de Carga *"
-        android:textSize="14sp"
-        android:textStyle="bold"
-        android:textColor="#333333"
-        android:layout_marginBottom="6dp" />
-
-    <Spinner
-        android:id="@+id/spinnerEstadoCarga"
-        android:layout_width="match_parent"
-        android:layout_height="48dp"
-        android:layout_marginBottom="16dp"
-        android:background="@android:drawable/btn_dropdown"
-        android:paddingStart="8dp"
-        android:paddingEnd="8dp" />
-
-    <!-- Chapa / Baliza -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Chapa / Baliza *"
-        android:textSize="14sp"
-        android:textStyle="bold"
-        android:textColor="#333333"
-        android:layout_marginBottom="6dp" />
-
-    <Spinner
-        android:id="@+id/spinnerChapaBaliza"
-        android:layout_width="match_parent"
-        android:layout_height="48dp"
-        android:layout_marginBottom="4dp"
-        android:background="@android:drawable/btn_dropdown"
-        android:paddingStart="8dp"
-        android:paddingEnd="8dp" />
-
-    <!-- Campo para "Otra" chapa (oculto por defecto) -->
-    <com.google.android.material.textfield.TextInputLayout
-        android:id="@+id/layoutOtraChapa"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="16dp"
-        android:visibility="gone"
-        android:hint="Especificar chapa/baliza">
+        android:orientation="vertical"
+        android:padding="20dp">
 
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/editOtraChapa"
+        <!-- Estado de Carga -->
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:inputType="text"
-            android:maxLines="1" />
+            android:text="ESTADO DE CARGA"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:textColor="@color/purple"
+            android:letterSpacing="0.05"
+            android:layout_marginBottom="6dp" />
 
-    </com.google.android.material.textfield.TextInputLayout>
-
-    <!-- Comentario -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Comentario (opcional)"
-        android:textSize="14sp"
-        android:textStyle="bold"
-        android:textColor="#333333"
-        android:layout_marginTop="8dp"
-        android:layout_marginBottom="6dp" />
-
-    <com.google.android.material.textfield.TextInputLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="Observaciones del extintor">
-
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/editComentario"
+        <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:inputType="textMultiLine"
-            android:minLines="2"
-            android:maxLines="4"
-            android:gravity="top" />
+            android:layout_marginBottom="18dp"
+            app:cardBackgroundColor="#FFFFFF"
+            app:cardCornerRadius="10dp"
+            app:cardElevation="1dp"
+            app:strokeColor="#CCCCCC"
+            app:strokeWidth="1dp">
 
-    </com.google.android.material.textfield.TextInputLayout>
+            <Spinner
+                android:id="@+id/spinnerEstadoCarga"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
+                android:popupBackground="#FFFFFF"
+                android:dropDownWidth="match_parent" />
 
-</LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Chapa / Baliza -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="CHAPA / BALIZA"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:textColor="@color/purple"
+            android:letterSpacing="0.05"
+            android:layout_marginBottom="6dp" />
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="6dp"
+            app:cardBackgroundColor="#FFFFFF"
+            app:cardCornerRadius="10dp"
+            app:cardElevation="1dp"
+            app:strokeColor="#CCCCCC"
+            app:strokeWidth="1dp">
+
+            <Spinner
+                android:id="@+id/spinnerChapaBaliza"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
+                android:popupBackground="#FFFFFF"
+                android:dropDownWidth="match_parent" />
+
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Campo para "Otra" chapa (oculto por defecto) -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/layoutOtraChapa"
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="12dp"
+            android:visibility="gone"
+            android:hint="Especificar chapa/baliza"
+            app:boxStrokeColor="@color/purple"
+            app:hintTextColor="@color/purple">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/editOtraChapa"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="text"
+                android:textSize="16sp"
+                android:textColor="#000000"
+                android:maxLines="1" />
+
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Separador visual -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginVertical="12dp"
+            android:background="#E0E0E0" />
+
+        <!-- Comentario -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="COMENTARIO (OPCIONAL)"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:textColor="#666666"
+            android:letterSpacing="0.05"
+            android:layout_marginBottom="6dp" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Observaciones del extintor"
+            app:boxStrokeColor="@color/purple"
+            app:hintTextColor="#888888">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/editComentario"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textMultiLine"
+                android:textSize="15sp"
+                android:textColor="#000000"
+                android:minLines="2"
+                android:maxLines="4"
+                android:gravity="top" />
+
+        </com.google.android.material.textfield.TextInputLayout>
+
+    </LinearLayout>
+
+</ScrollView>

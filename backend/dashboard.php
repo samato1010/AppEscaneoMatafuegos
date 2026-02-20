@@ -241,6 +241,7 @@ function parsearDiasVencimiento(string $fecha): ?int {
             transition: all 0.2s;
         }
         .topbar .link-visor:hover { background: var(--blue); color: white; }
+        .topbar .link-visor[style*="purple"]:hover { background: var(--purple) !important; color: white !important; }
 
         .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
 
@@ -427,7 +428,8 @@ function parsearDiasVencimiento(string $fecha): ?int {
         <div class="topbar-right">
             <span class="live-dot"></span>
             <span style="font-size:12px;color:var(--text-muted)">Actualizado: <span id="lastUpdate">-</span></span>
-            <a href="visor.php" class="link-visor">Ver Listado</a>
+            <a href="informe_controles.php" class="link-visor" style="border-color:var(--purple);color:var(--purple)">&#128203; Controles Periodicos</a>
+            <a href="visor.php" class="link-visor">&#128196; Ver Listado</a>
         </div>
     </div>
 

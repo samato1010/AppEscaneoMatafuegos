@@ -227,6 +227,22 @@ $contTotal      = $db->query("SELECT COUNT(*) FROM extintores")->fetchColumn();
         }
         .header h1 { font-size: 22px; font-weight: 700; }
         .header .subtitle { font-size: 13px; color: #a0aec0; margin-top: 2px; }
+        .header-nav { display: flex; gap: 8px; margin-top: 8px; }
+        .nav-link {
+            color: white;
+            text-decoration: none;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 4px 12px;
+            border-radius: 6px;
+            border: 1px solid rgba(255,255,255,0.3);
+            transition: all 0.2s;
+        }
+        .nav-link:hover { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.6); }
+        .nav-dashboard { border-color: var(--blue); color: #93c5fd; }
+        .nav-dashboard:hover { background: var(--blue); color: white; }
+        .nav-controles { border-color: var(--purple); color: #c4b5fd; }
+        .nav-controles:hover { background: var(--purple); color: white; }
 
         .stats { display: flex; gap: 8px; flex-wrap: wrap; }
         .stat {
@@ -857,6 +873,10 @@ $contTotal      = $db->query("SELECT COUNT(*) FROM extintores")->fetchColumn();
             <div>
                 <h1>Visor de Matafuegos Escaneados</h1>
                 <div class="subtitle">HST SRL - Sistema Belga</div>
+                <div class="header-nav">
+                    <a href="dashboard.php" class="nav-link nav-dashboard">&#128202; Dashboard</a>
+                    <a href="informe_controles.php" class="nav-link nav-controles">&#128203; Controles Periodicos</a>
+                </div>
             </div>
             <div class="stats" id="statsContainer">
                 <div class="stat cargado" onclick="filtrarEstado('cargado')" id="statCargado">
