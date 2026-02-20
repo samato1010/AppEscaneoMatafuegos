@@ -63,3 +63,6 @@ Thumbs.db
 
 # Signing config
 signing.properties
+
+# Backend - credenciales sensibles
+backend/config.php

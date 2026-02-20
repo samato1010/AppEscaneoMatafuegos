@@ -1,0 +1,17 @@
+# Proteccion de archivos sensibles
+# Solo config.php y sincronizar.php no deben ser accesibles directamente
+
+<Files "config.php">
+    Require all denied
+</Files>
+
+<Files "sincronizar.php">
+    Require all denied
+</Files>
+
+# Habilitar CORS para la app Android
+<IfModule mod_headers.c>
+    Header set Access-Control-Allow-Origin "*"
+    Header set Access-Control-Allow-Methods "GET, POST, OPTIONS"
+    Header set Access-Control-Allow-Headers "Content-Type"
+</IfModule>
